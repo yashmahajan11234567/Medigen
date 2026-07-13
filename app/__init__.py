@@ -1,0 +1,2 @@
+"""MediGen backend application package."""
+
