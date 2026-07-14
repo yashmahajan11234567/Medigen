@@ -11,14 +11,15 @@ from app.utils.datetime import utc_now
 
 
 class ScheduleRepository(BaseRepository):
-    def create_schedule(self, schedule: Schedule, reminders: list[ScheduleReminder]) -> Schedule:
+    def create_schedule(self, schedule: Schedule, reminders: list[ScheduleReminder], *, commit: bool = True) -> Schedule:
         self.session.add(schedule)
         self.session.flush()
         for reminder in reminders:
             reminder.schedule_id = schedule.id
             self.session.add(reminder)
-        self.session.commit()
-        self.session.refresh(schedule)
+        if commit:
+            self.session.commit()
+            self.session.refresh(schedule)
         return schedule
 
     def update_schedule(self, schedule: Schedule, reminders: list[ScheduleReminder] | None = None) -> Schedule:
@@ -137,9 +138,11 @@ class ScheduleRepository(BaseRepository):
         )
         return self.session.execute(statement).scalar_one_or_none()
 
-    def mark_reminder_completed(self, reminder: ScheduleReminder) -> ScheduleReminder:
+    def mark_reminder_completed(self, reminder: ScheduleReminder, *, commit: bool = True) -> ScheduleReminder:
         reminder.completed_at = utc_now()
         self.session.add(reminder)
-        self.session.commit()
-        self.session.refresh(reminder)
+        self.session.flush()
+        if commit:
+            self.session.commit()
+            self.session.refresh(reminder)
         return reminder

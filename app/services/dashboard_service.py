@@ -10,11 +10,13 @@ from app.schemas.dashboard import (
     DashboardScheduleItem,
     DashboardUserSummary,
 )
+from app.services.inventory_service import InventoryService
 
 
 class DashboardService:
     def __init__(self, session) -> None:
         self.repository = DashboardRepository(session)
+        self.inventory_service = InventoryService(session)
 
     def get_dashboard(self, user_id: int, current_datetime: datetime | None = None) -> DashboardResponse:
         now = current_datetime or datetime.now()
@@ -30,7 +32,7 @@ class DashboardService:
 
             notification_count = self.repository.get_unread_notification_count(user_id)
             today_schedule = self.repository.get_todays_schedule(user_id, now.date())
-            inventory_summary = self.repository.get_inventory_summary(user_id)
+            inventory_summary = self.inventory_service.get_inventory_summary(user_id=user_id)
         except AppException:
             raise
         except SQLAlchemyError as exc:
@@ -56,7 +58,10 @@ class DashboardService:
                 )
                 for schedule in today_schedule
             ],
-            inventory_summary=DashboardInventorySummary(**inventory_summary),
+            inventory_summary=DashboardInventorySummary(
+                total_medicines=inventory_summary.total_medicines,
+                expiring_soon=inventory_summary.expiring_soon,
+            ),
         )
 
     def get_greeting(self, current_datetime: datetime | None = None) -> str:
@@ -69,4 +74,3 @@ class DashboardService:
         if 17 <= hour < 21:
             return "Good Evening"
         return "Good Night"
-

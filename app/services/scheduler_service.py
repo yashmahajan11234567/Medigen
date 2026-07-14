@@ -28,6 +28,7 @@ DEFAULT_REMINDER_TIMES = {
 
 class SchedulerService:
     def __init__(self, session) -> None:
+        self.session = session
         self.schedule_repository = ScheduleRepository(session)
         self.medicine_repository = MedicineRepository(session)
         self.inventory_integration_service = InventoryIntegrationService(session)
@@ -81,20 +82,16 @@ class SchedulerService:
             source=payload.source,
         )
 
-        created = self.schedule_repository.create_schedule(schedule, reminders)
-        try:
+        with self._transaction_scope():
+            created = self.schedule_repository.create_schedule(schedule, reminders, commit=False)
             self._integrate_inventory(
                 user_id=user_id,
                 medicine_id=medicine.id,
                 quantity=payload.quantity,
                 quantity_unit=payload.quantity_unit,
                 expiry_date=payload.expiry_date,
+                commit=False,
             )
-        except AppException:
-            reloaded = self.schedule_repository.get_schedule_by_id(user_id=user_id, schedule_id=created.id)
-            if reloaded is not None:
-                self.schedule_repository.delete_schedule(reloaded)
-            raise
         created = self.schedule_repository.get_schedule_by_id(user_id=user_id, schedule_id=created.id)
         return self._to_response(created)
 
@@ -194,7 +191,17 @@ class SchedulerService:
         reminder = self.schedule_repository.get_reminder_by_id(user_id=user_id, reminder_id=payload.reminder_id)
         if reminder is None:
             raise AppException("Reminder not found.", 404, "reminder_not_found")
-        completed = self.schedule_repository.mark_reminder_completed(reminder)
+        schedule = reminder.schedule
+        dosage_pattern = schedule.dosage_pattern or schedule.dosage_amount or "0-0-0"
+        with self._transaction_scope():
+            self._consume_inventory_for_completion(
+                user_id=user_id,
+                medicine_id=schedule.medicine_id,
+                dosage_pattern=dosage_pattern,
+                period=reminder.period,
+                commit=False,
+            )
+            completed = self.schedule_repository.mark_reminder_completed(reminder, commit=False)
         return self._to_reminder_response(completed)
 
     def _resolve_end_date(self, *, start_date: date, end_date: date | None, duration_days: int | None) -> date:
@@ -268,7 +275,16 @@ class SchedulerService:
         if duplicate is not None:
             raise AppException("Duplicate active schedule.", 409, "duplicate_active_schedule")
 
-    def _integrate_inventory(self, *, user_id: int, medicine_id: int, quantity: float | None, quantity_unit: str | None, expiry_date: date | None) -> None:
+    def _integrate_inventory(
+        self,
+        *,
+        user_id: int,
+        medicine_id: int,
+        quantity: float | None,
+        quantity_unit: str | None,
+        expiry_date: date | None,
+        commit: bool = True,
+    ) -> None:
         try:
             self.inventory_integration_service.add_scheduler_medicine(
                 user_id=user_id,
@@ -276,6 +292,7 @@ class SchedulerService:
                 quantity=quantity,
                 quantity_unit=quantity_unit,
                 expiry_date=expiry_date,
+                commit=commit,
             )
         except AppException as exc:
             raise AppException(
@@ -283,6 +300,35 @@ class SchedulerService:
                 exc.status_code,
                 "inventory_integration_failure",
             ) from exc
+
+    def _consume_inventory_for_completion(
+        self,
+        *,
+        user_id: int,
+        medicine_id: int,
+        dosage_pattern: str,
+        period: ReminderPeriod,
+        commit: bool = True,
+    ) -> None:
+        try:
+            self.inventory_integration_service.consume_scheduler_medicine(
+                user_id=user_id,
+                medicine_id=medicine_id,
+                dosage_pattern=dosage_pattern,
+                period=period,
+                commit=commit,
+            )
+        except AppException as exc:
+            raise AppException(
+                f"Inventory integration failure: {exc.message}",
+                exc.status_code,
+                "inventory_integration_failure",
+            ) from exc
+
+    def _transaction_scope(self):
+        if self.session.in_transaction():
+            return self.session.begin_nested()
+        return self.session.begin()
 
     def _get_medicine_or_raise(self, medicine_id: int):
         medicine = self.medicine_repository.get_medicine_by_id(medicine_id)

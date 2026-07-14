@@ -9,23 +9,28 @@ from app.repositories.base import BaseRepository
 
 
 class InventoryRepository(BaseRepository):
-    def add_inventory_item(self, inventory_item: InventoryItem) -> InventoryItem:
+    def add_inventory_item(self, inventory_item: InventoryItem, *, commit: bool = True) -> InventoryItem:
         self.session.add(inventory_item)
-        self.session.commit()
-        self.session.refresh(inventory_item)
+        self.session.flush()
+        if commit:
+            self.session.commit()
+            self.session.refresh(inventory_item)
         return inventory_item
 
-    def update_inventory_item(self, inventory_item: InventoryItem) -> InventoryItem:
+    def update_inventory_item(self, inventory_item: InventoryItem, *, commit: bool = True) -> InventoryItem:
         self.session.add(inventory_item)
-        self.session.commit()
-        self.session.refresh(inventory_item)
+        self.session.flush()
+        if commit:
+            self.session.commit()
+            self.session.refresh(inventory_item)
         return inventory_item
 
-    def soft_delete_inventory_item(self, inventory_item: InventoryItem) -> None:
+    def soft_delete_inventory_item(self, inventory_item: InventoryItem, *, commit: bool = True) -> None:
         inventory_item.is_deleted = True
         inventory_item.deleted_at = func.now()
         self.session.add(inventory_item)
-        self.session.commit()
+        if commit:
+            self.session.commit()
 
     def get_inventory_item_by_id(self, *, user_id: int, inventory_id: int) -> InventoryItem | None:
         statement = (
@@ -48,6 +53,23 @@ class InventoryRepository(BaseRepository):
                 InventoryItem.is_deleted.is_(False),
             )
             .order_by(InventoryItem.created_at.desc(), InventoryItem.id.desc())
+        )
+        return list(self.session.execute(statement).scalars().unique().all())
+
+    def list_inventory_items_by_medicine(self, *, user_id: int, medicine_id: int) -> list[InventoryItem]:
+        statement = (
+            select(InventoryItem)
+            .options(joinedload(InventoryItem.medicine))
+            .where(
+                InventoryItem.user_id == user_id,
+                InventoryItem.medicine_id == medicine_id,
+                InventoryItem.is_deleted.is_(False),
+            )
+            .order_by(
+                InventoryItem.expiry_date.is_(None),
+                InventoryItem.expiry_date.asc(),
+                InventoryItem.id.asc(),
+            )
         )
         return list(self.session.execute(statement).scalars().unique().all())
 
@@ -151,4 +173,3 @@ class InventoryRepository(BaseRepository):
             total += int(count)
         result["total"] = total
         return result
-

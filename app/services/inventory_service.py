@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from app.core.enums import InventoryStatus, MedicineType
+from app.core.enums import InventoryStatus, MedicineType, ReminderPeriod
 from app.core.exceptions import AppException
 from app.models.inventory import InventoryItem
 from app.models.medicine import Medicine
@@ -161,6 +161,7 @@ class InventoryService:
         expiry_date: date | None = None,
         quantity: float | None = None,
         quantity_unit: str | None = None,
+        commit: bool = True,
     ) -> InventoryResponseItem:
         medicine = self.medicine_repository.get_medicine_by_id(medicine_id)
         if medicine is None:
@@ -183,7 +184,9 @@ class InventoryService:
                 expiry_date=expiry_date,
             ),
         )
-        created = self.inventory_repository.add_inventory_item(item)
+        created = self.inventory_repository.add_inventory_item(item, commit=commit)
+        if not commit:
+            return self._to_response(created)
         created = self._load_inventory_item(user_id=user_id, inventory_id=created.id)
         return self._to_response(created)
 
@@ -195,6 +198,7 @@ class InventoryService:
         quantity: float | None,
         quantity_unit: str | None,
         expiry_date: date | None = None,
+        commit: bool = True,
     ) -> InventoryResponseItem:
         return self.add_generic_medicine_to_inventory(
             user_id=user_id,
@@ -202,7 +206,49 @@ class InventoryService:
             quantity=quantity,
             quantity_unit=quantity_unit,
             expiry_date=expiry_date,
+            commit=commit,
         )
+
+    def consume_scheduler_medicine(
+        self,
+        *,
+        user_id: int,
+        medicine_id: int,
+        dosage_pattern: str,
+        period: ReminderPeriod,
+        commit: bool = True,
+    ) -> InventoryResponseItem | None:
+        dose_quantity = self._dose_quantity_for_period(dosage_pattern=dosage_pattern, period=period)
+        if dose_quantity <= 0:
+            return None
+
+        items = self.inventory_repository.list_inventory_items_by_medicine(
+            user_id=user_id,
+            medicine_id=medicine_id,
+        )
+        if not items:
+            return None
+
+        for item in items:
+            item = self._sync_status(item, commit=commit)
+            if item.medicine.dosage_form not in QUANTITY_TRACKED_TYPES:
+                return None
+            if item.quantity is None or item.quantity <= 0:
+                continue
+
+            item.quantity = max(item.quantity - dose_quantity, 0)
+            item.status = self._determine_status(
+                medicine_type=item.medicine.dosage_form,
+                quantity=item.quantity,
+                expiry_date=item.expiry_date,
+            )
+            updated = self.inventory_repository.update_inventory_item(item, commit=commit)
+            if not commit:
+                return self._to_response(updated)
+            refreshed = self._load_inventory_item(user_id=user_id, inventory_id=updated.id)
+            return self._to_response(refreshed)
+
+        return None
 
     def _resolve_or_create_medicine(self, payload: InventoryCreateRequest) -> Medicine:
         if payload.medicine_id is not None:
@@ -290,7 +336,7 @@ class InventoryService:
             return InventoryStatus.OUT_OF_STOCK
         return InventoryStatus.AVAILABLE
 
-    def _sync_status(self, item: InventoryItem) -> InventoryItem:
+    def _sync_status(self, item: InventoryItem, *, commit: bool = True) -> InventoryItem:
         expected_status = self._determine_status(
             medicine_type=item.medicine.dosage_form,
             quantity=item.quantity,
@@ -298,8 +344,20 @@ class InventoryService:
         )
         if item.status != expected_status:
             item.status = expected_status
-            item = self.inventory_repository.update_inventory_item(item)
+            item = self.inventory_repository.update_inventory_item(item, commit=commit)
         return item
+
+    def _dose_quantity_for_period(self, *, dosage_pattern: str, period: ReminderPeriod) -> int:
+        try:
+            morning, afternoon, night = [int(part) for part in dosage_pattern.split("-")]
+        except ValueError as exc:
+            raise AppException("Invalid dosage.", 422, "invalid_dosage") from exc
+
+        if period == ReminderPeriod.MORNING:
+            return morning
+        if period == ReminderPeriod.AFTERNOON:
+            return afternoon
+        return night
 
     def _to_response(self, item: InventoryItem) -> InventoryResponseItem:
         return InventoryResponseItem(
