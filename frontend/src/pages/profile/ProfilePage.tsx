@@ -5,18 +5,20 @@ import { Card } from "@/components/common/Card";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { InlineError } from "@/components/feedback/InlineError";
 import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/hooks/useAuth";
 import { LogOut, RefreshCw } from "lucide-react";
 
 export function ProfilePage() {
   const { user, loading, error, refetch } = useProfile();
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleRefresh = () => {
     void refetch();
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    logout();
     navigate("/login", { replace: true });
   };
 

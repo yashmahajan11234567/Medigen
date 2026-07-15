@@ -60,68 +60,6 @@ export interface DashboardResponse {
   inventory_summary: DashboardInventorySummary;
 }
 
-export interface ApiErrorPayload {
-  message: string;
-  code: string;
-  details?: Array<Record<string, unknown>>;
-}
-
-export interface User {
-  id: number;
-  full_name: string;
-  email: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  full_name: string;
-  email: string;
-  password: string;
-}
-
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  user: User;
-}
-
-export interface DashboardUserSummary {
-  id: number;
-  name: string;
-}
-
-export interface DashboardScheduleItem {
-  id: number;
-  medicine_id: number;
-  medicine_name: string;
-  dosage_amount: string | null;
-  dosage_unit: string | null;
-  frequency: string | null;
-  recall: any; // can keep type any to avoid breaking; not used in frontend
-  reminder_time: string | null;
-}
-
-export interface DashboardInventorySummary {
-  total_medicines: number;
-  expiring_soon: number;
-}
-
-export interface DashboardResponse {
-  user: DashboardUserSummary;
-  greeting: string;
-  notification_count: number;
-  today_schedule: DashboardScheduleItem[];
-  inventory_summary: DashboardInventorySummary;
-}
-
 // Generic Finder types
 export interface CanonicalComposition {
   ingredient: string;
