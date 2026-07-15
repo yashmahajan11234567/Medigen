@@ -8,6 +8,7 @@ import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { NotFoundPage } from "@/pages/system/NotFoundPage";
 import { SchedulerPage } from "@/pages/scheduler/SchedulerPage";
 import { MedicalRecordsPage } from "@/pages/medical-records/MedicalRecordsPage";
+import { ProfilePage } from "@/pages/profile/ProfilePage";
 import { GuestRoute } from "@/router/GuestRoute";
 import { ProtectedRoute } from "@/router/ProtectedRoute";
 
@@ -54,6 +55,10 @@ export const router = createBrowserRouter([
           {
             path: "/medical-records",
             element: <MedicalRecordsPage />,
+          },
+          {
+            path: "/profile",
+            element: <ProfilePage />,
           },
         ],
       },
