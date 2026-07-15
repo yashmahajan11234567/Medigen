@@ -3,9 +3,11 @@ import { AppShell } from "@/layouts/AppShell";
 import { DashboardPage } from "@/pages/app/DashboardPage";
 import { FeaturePlaceholderPage } from "@/pages/app/FeaturePlaceholderPage";
 import { GenericFinderPage } from "@/pages/generic/GenericFinderPage";
+import { InventoryPage } from "@/pages/inventory/InventoryPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { NotFoundPage } from "@/pages/system/NotFoundPage";
+import { SchedulerPage } from "@/pages/scheduler/SchedulerPage";
 import { GuestRoute } from "@/router/GuestRoute";
 import { ProtectedRoute } from "@/router/ProtectedRoute";
 
@@ -39,19 +41,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "/schedule",
-            element: (
-              <FeaturePlaceholderPage
-                eyebrow="Page 2"
-                title="Scheduler Frontend Placeholder"
-                description="The Schedule backend is verified, including CRUD, today's reminders, bill-based creation, and completion flow. This page remains intentionally unimplemented in Phase 8.1."
-                apiHighlights={[
-                  "GET /api/v1/schedule",
-                  "GET /api/v1/schedule/today",
-                  "POST /api/v1/schedule/from-bill",
-                  "POST /api/v1/schedule/complete",
-                ]}
-              />
-            ),
+            element: <SchedulerPage />,
           },
           {
             path: "/generic",
@@ -59,19 +49,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "/inventory",
-            element: (
-              <FeaturePlaceholderPage
-                eyebrow="Page 4"
-                title="Inventory Frontend Placeholder"
-                description="Inventory CRUD, search, filters, and summary are all available on the backend. This route currently exists only to prove the shared layout and protected navigation."
-                apiHighlights={[
-                  "GET /api/v1/inventory",
-                  "GET /api/v1/inventory/search",
-                  "GET /api/v1/inventory/filter",
-                  "GET /api/v1/inventory/summary",
-                ]}
-              />
-            ),
+            element: <InventoryPage />,
           },
           {
             path: "/medical-records",

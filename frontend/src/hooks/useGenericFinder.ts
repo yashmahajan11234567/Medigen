@@ -10,7 +10,7 @@ import type {
 export function useGenericFinder() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [searchResults, setSearchResults] = useState<GenericFinderSearchResponse | null>(null);
+  const [results, setResults] = useState<GenericMedicineSummary[]>([]);
   const [selectedMedicine, setSelectedMedicine] = useState<GenericMedicineSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,8 +18,8 @@ export function useGenericFinder() {
 
   // Search when debounced search term changes (and is not empty)
   useEffect(() => {
-    if (db.trim() === "") {
-      setSearchResults(null);
+    if (debouncedSearchTerm.trim() === "") {
+      setResults([]);
       return;
     }
 
@@ -31,14 +31,14 @@ export function useGenericFinder() {
           "/api/v1/generic/search",
           { params: { brand_name: debouncedSearchTerm } }
         );
-        setSearchResults(response.data);
+        setResults(response.data.matches);
       } catch (err: any) {
         setError(
           err.response?.data?.message ||
             err.message ||
             "An error occurred while searching"
         );
-        setSearchResults(null);
+        setResults([]);
         console.error("Search error:", err);
       } finally {
         setLoading(false);
@@ -85,7 +85,7 @@ export function useGenericFinder() {
   return {
     searchTerm,
     setSearchTerm,
-    searchResults,
+    results,
     selectedMedicine,
     loading,
     error,
