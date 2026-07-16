@@ -7,8 +7,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { InlineError } from "@/components/feedback/InlineError";
 import { useInventory } from "@/hooks/useInventory";
-import { Package } from "lucide-react";
-import type { InventoryCreateRequest } from "@/types/api";
+import { Package, Edit, Trash2 } from "lucide-react";
+import type { InventoryCreateRequest, InventoryUpdateRequest, InventoryResponseItem } from "@/types/api";
 
 export function InventoryPage() {
   const {
@@ -17,6 +17,8 @@ export function InventoryPage() {
     error,
     success,
     createInventory,
+    updateInventory,
+    deleteInventory,
   } = useInventory();
 
   const [formData, setFormData] = useState<InventoryCreateRequest>({
@@ -33,6 +35,9 @@ export function InventoryPage() {
     notes: null,
   });
 
+  const [editMode, setEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
   const handleChange = (
@@ -60,8 +65,83 @@ export function InventoryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createInventory(formData);
-    // reset form
+    setFormLoading(true);
+    try {
+      if (editMode && editingId !== null) {
+        await updateInventory(editingId, formData as unknown as InventoryUpdateRequest);
+        // Reset form and hide
+        setEditMode(false);
+        setEditingId(null);
+        setFormData({
+          medicine_id: null,
+          name: "",
+          generic_name: null,
+          brand_name: null,
+          type: "tablet",
+          quantity: null,
+          quantity_unit: null,
+          expiry_date: null,
+          purchase_date: null,
+          image_path: null,
+          notes: null,
+        });
+      } else {
+        await createInventory(formData);
+        // Reset form
+        setFormData({
+          medicine_id: null,
+          name: "",
+          generic_name: null,
+          brand_name: null,
+          type: "tablet",
+          quantity: null,
+          quantity_unit: null,
+          expiry_date: null,
+          purchase_date: null,
+          image_path: null,
+          notes: null,
+        });
+      }
+    } catch (err: any) {
+      // Error is shown via the hook's error state
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleEdit = (item: InventoryResponseItem) => {
+    setEditMode(true);
+    setEditingId(item.id);
+    setFormData({
+      medicine_id: item.medicine_id,
+      name: item.name ?? "",
+      generic_name: item.generic_name ?? null,
+      brand_name: item.brand_name ?? null,
+      type: item.type,
+      quantity: item.quantity ?? null,
+      quantity_unit: item.quantity_unit ?? null,
+      expiry_date: item.expiry_date ?? null,
+      purchase_date: item.purchase_date ?? null,
+      image_path: item.image_path ?? null,
+      notes: item.notes ?? null,
+    });
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this inventory item?")) {
+      return;
+    }
+    try {
+      await deleteInventory(id);
+      // The deleteInventory hook updates the state, so we don't need to refetch.
+    } catch (err: any) {
+      alert("Failed to delete item: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleCancel = () => {
+    setEditMode(false);
+    setEditingId(null);
     setFormData({
       medicine_id: null,
       name: "",
@@ -110,7 +190,7 @@ export function InventoryPage() {
       <div className="space-y-6">
         <Card>
           <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Add Inventory Item
+            {editMode ? "Edit Inventory Item" : "Add Inventory Item"}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -225,9 +305,23 @@ export function InventoryPage() {
               </div>
             </div>
 
-            <Button type="submit" variant="primary" disabled={loading}>
-              {loading ? "Adding..." : "Add to Inventory"}
-            </Button>
+            <div className="flex justify-end space-x-3 mt-4">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                disabled={formLoading}
+              >
+                {formLoading ? (editMode ? "Updating..." : "Adding...") : editMode ? "Update" : "Create"}
+              </Button>
+            </div>
           </form>
         </Card>
 
@@ -277,9 +371,25 @@ export function InventoryPage() {
                         </p>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {item.status}
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleEdit(item)}
+                      >
+                        <Edit className="mr-1 h-4 w-4" /> Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDelete(item.id)}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" /> Delete
+                      </Button>
                     </div>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-2">
+                    <span>Status: {item.status}</span>
                   </div>
                 </div>
               ))}

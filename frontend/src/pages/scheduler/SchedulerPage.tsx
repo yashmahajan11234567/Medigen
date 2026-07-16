@@ -10,6 +10,8 @@ import { useScheduler } from "@/hooks/useScheduler";
 import { Calendar } from "lucide-react";
 import type {
   ScheduleCreateRequest,
+  ScheduleUpdateRequest,
+  ScheduleResponse,
 } from "@/types/api";
 
 export function SchedulerPage() {
@@ -18,7 +20,14 @@ export function SchedulerPage() {
     loading: schedulesLoading,
     error: schedulesError,
     createSchedule,
+    updateSchedule,
+    deleteSchedule,
     fetchSchedules,
+    todaySchedule,
+    loading: todayLoading,
+    error: todayError,
+    completeReminder,
+    fetchTodaySchedule,
   } = useScheduler();
 
   const [formData, setFormData] = useState<ScheduleCreateRequest>({
@@ -38,44 +47,144 @@ export function SchedulerPage() {
     source: "manual",
   });
 
+  const [editMode, setEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const target = e.target;
-    const { name, type } = target;
-    let value: any = target.value;
-    if (type === "checkbox") {
-      value = (target as HTMLInputElement).checked;
-    } else if (type === "number") {
-      value = target.value === "" ? null : Number(target.value);
+    const { name, type, value } = target;
+
+    let val: any;
+    if (type === "number") {
+      const numValue = value;
+      val = numValue === "" ? null : Number(numValue);
+    } else {
+      val = value;
     }
+
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: val,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createSchedule(formData);
-    // reset form
-    setFormData({
-      medicine_id: 0,
-      dosage_pattern: "",
-      food_tyming: "before_food",
-      start_date: new Date().toISOString().split("T")[0],
-      end_date: null,
-      duration_days: null,
-      reminder_times: { morning: null, afternoon: null, night: null },
-      notes: null,
-      quantity: null,
-      quantity_unit: null,
-      purchase_date: null,
-      expiry_date: null,
-      pharmacy_name: null,
-      source: "manual",
+    setFormLoading(true);
+    try {
+      if (editMode && editingId !== null) {
+        await updateSchedule(editingId, formData as unknown as ScheduleUpdateRequest);
+        // Reset form and hide
+        setEditMode(false);
+        setEditingId(null);
+        setFormData({
+          medicine_id: 0,
+          dosage_pattern: "",
+          food_tyming: "before_food",
+          start_date: new Date().toISOString().split("T")[0],
+          end_date: null,
+          duration_days: null,
+          reminder_times: { morning: null, afternoon: null, night: null },
+          notes: null,
+          quantity: null,
+          quantity_unit: null,
+          purchase_date: null,
+          expiry_date: null,
+          pharmacy_name: null,
+          source: "manual",
+        });
+        await fetchSchedules(); // Refresh list
+      } else {
+        await createSchedule(formData);
+        // Reset form
+        setFormData({
+          medicine_id: 0,
+          dosage_pattern: "",
+          food_tyming: "before_food",
+          start_date: new Date().toISOString().split("T")[0],
+          end_date: null,
+          duration_days: null,
+          reminder_times: { morning: null, afternoon: null, night: null },
+          notes: null,
+          quantity: null,
+          quantity_unit: null,
+          purchase_date: null,
+          expiry_date: null,
+          pharmacy_name: null,
+          source: "manual",
+        });
+        await fetchSchedules(); // Refresh list
+      }
+    } catch (err: any) {
+      // Error is shown via the hook's error state
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleEdit = (schedule: ScheduleResponse) => {
+    setEditMode(true);
+    setEditingId(schedule.id);
+    // Build reminder_times object from reminders array
+    const reminderTimes: { morning: string | null; afternoon: string | null; night: string | null } = {
+      morning: null,
+      afternoon: null,
+      night: null,
+    };
+    schedule.reminders?.forEach((reminder) => {
+      if (reminder.period === "morning") {
+        reminderTimes.morning = reminder.reminder_time;
+      } else if (reminder.period === "afternoon") {
+        reminderTimes.afternoon = reminder.reminder_time;
+      } else if (reminder.period === "night") {
+        reminderTimes.night = reminder.reminder_time;
+      }
     });
-    await fetchSchedules();
+    setFormData({
+      medicine_id: schedule.medicine_id,
+      dosage_pattern: schedule.dosage_pattern,
+      food_tyming: schedule.food_timing,
+      start_date: schedule.start_date,
+      end_date: schedule.end_date,
+      duration_days: schedule.duration_days,
+      reminder_times: reminderTimes,
+      notes: schedule.notes ?? null,
+      quantity: schedule.quantity ?? null,
+      quantity_unit: schedule.quantity_unit ?? null,
+      purchase_date: schedule.purchase_date ?? null,
+      expiry_date: schedule.expiry_date ?? null,
+      pharmacy_name: schedule.pharmacy_name ?? null,
+      source: schedule.source,
+    });
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this schedule?")) {
+      return;
+    }
+    try {
+      await deleteSchedule(id);
+      // The deleteSchedule hook updates the state, so we don't need to refetch.
+      // But we'll refetch to be safe.
+      await fetchSchedules();
+    } catch (err: any) {
+      alert("Failed to delete schedule: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleCompleteReminder = async (reminderId: number) => {
+    try {
+      await completeReminder(reminderId);
+      // Refresh today's schedule after completion
+      await fetchTodaySchedule();
+      // Also refresh schedules in case completion affects status
+      await fetchSchedules();
+    } catch (err: any) {
+      alert("Failed to complete reminder: " + (err.response?.data?.message || err.message));
+    }
   };
 
   return (
@@ -88,6 +197,11 @@ export function SchedulerPage() {
       {schedulesError && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
           <InlineError title="Error" message={schedulesError} />
+        </div>
+      )}
+      {todayError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+          <InlineError title="Today's Schedule Error" message={todayError} />
         </div>
       )}
       <div className="space-y-6">
@@ -226,10 +340,84 @@ export function SchedulerPage() {
                   <option value="generic_finder">Generic Finder</option>
                 </select>
               </div>
+              <div>
+                <label className="block mb-1 font-medium text-slate-900">
+                  Reminder Times
+                </label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div>
+                    <Input
+                      label="Morning (HH:MM)"
+                      name="morning"
+                      type="text"
+                      value={formData.reminder_times?.morning ?? ""}
+                      onChange={handleChange}
+                      className="mb-2"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label="Afternoon (HH:MM)"
+                      name="afternoon"
+                      type="text"
+                      value={formData.reminder_times?.afternoon ?? ""}
+                      onChange={handleChange}
+                      className="mb-2"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      label="Night (HH:MM)"
+                      name="night"
+                      type="text"
+                      value={formData.reminder_times?.night ?? ""}
+                      onChange={handleChange}
+                      className="mb-2"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Input
+                  label="Notes (optional)"
+                  name="notes"
+                  type="text"
+                  value={formData.notes ?? ""}
+                  onChange={handleChange}
+                  className="mb-2"
+                />
+              </div>
             </div>
 
-            <Button type="submit" variant="primary" disabled={schedulesLoading}>
-              {schedulesLoading ? "Adding..." : "Add Schedule"}
+            <Button type="submit" variant="primary" disabled={formLoading}>
+              {formLoading ? "Saving..." : "Add Schedule"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setEditMode(false);
+                setEditingId(null);
+                setFormData({
+                  medicine_id: 0,
+                  dosage_pattern: "",
+                  food_tyming: "before_food",
+                  start_date: new Date().toISOString().split("T")[0],
+                  end_date: null,
+                  duration_days: null,
+                  reminder_times: { morning: null, afternoon: null, night: null },
+                  notes: null,
+                  quantity: null,
+                  quantity_unit: null,
+                  purchase_date: null,
+                  expiry_date: null,
+                  pharmacy_name: null,
+                  source: "manual",
+                });
+              }}
+            >
+              Cancel
             </Button>
           </form>
         </Card>
@@ -290,7 +478,121 @@ export function SchedulerPage() {
                       )}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {schedule.status}
+                      <span>{schedule.status}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end space-x-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleEdit(schedule)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDelete(schedule.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">
+            Today's Schedule ({todaySchedule.length})
+          </h2>
+          {todayLoading && todaySchedule.length === 0 ? (
+            <LoadingScreen
+              title="Loading today's schedule…"
+              description="Please wait while we load today's schedule."
+            />
+          ) : todayError ? (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+              <InlineError title="Load error" message={todayError} />
+            </div>
+          ) : todaySchedule.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-slate-500">
+                No medications scheduled for today.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {todaySchedule.map((schedule) => (
+                <div
+                  key={schedule.id}
+                  className="p-4 bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium text-slate-900">
+                        Schedule #{schedule.id}
+                      </h3>
+                      <p className="text-sm text-slate-600">
+                        Medicine ID: {schedule.medicine_id}
+                      </p>
+                      <p className="text-sm text-slice-600">
+                        {schedule.dosage_pattern} • {schedule.food_timing}
+                      </p>
+                      {schedule.start_date && (
+                        <p className="text-sm text-slate-600">
+                          Starts:{" "}
+                            {new Date(schedule.start_date).toLocaleDateString()}
+                        </p>
+                      )}
+                      {schedule.end_date && (
+                        <p className="text-sm text-slate-600">
+                          Ends:{" "}
+                            {new Date(schedule.end_date).toLocaleDateString()}
+                        </p>
+                      )}
+                      {schedule.notes && (
+                        <p className="text-sm text-slate-600 italic">
+                          {schedule.notes}
+                        </p>
+                      )}
+                      {schedule.reminders && schedule.reminders.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="font-medium text-slate-700">
+                            Reminders for today:
+                          </p>
+                          {schedule.reminders.map((reminder) => (
+                            <div
+                              key={reminder.id}
+                              className="flex items-center justify-between p-2 bg-white/50 rounded"
+                            >
+                              <span>
+                                {reminder.period}: {
+                                  new Date(
+                                    `1970-01-01T${reminder.reminder_time}:00Z`
+                                  ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                                }
+                              </span>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleCompleteReminder(reminder.id)}
+                                disabled={reminder.completed_at !== null}
+                              >
+                                {reminder.completed_at ? "Completed" : "Complete"}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          No reminders scheduled for today.
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      <span>{schedule.status}</span>
                     </div>
                   </div>
                 </div>

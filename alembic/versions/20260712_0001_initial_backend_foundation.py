@@ -272,12 +272,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["inventory_item_id"],
             ["inventory.id"],
-            name="fk_medical_record_inventory_items_inventory_item_id_inventory",
+            name="fk_medrec_invitem_inventory",
         ),
         sa.ForeignKeyConstraint(
             ["medical_record_id"],
             ["medical_records.id"],
-            name="fk_medical_record_inventory_items_medical_record_id_medical_records",
+            name="fk_medrec_invitem_medrec",
         ),
         sa.PrimaryKeyConstraint(
             "medical_record_id",
