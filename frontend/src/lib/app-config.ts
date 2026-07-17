@@ -5,5 +5,8 @@ function readEnv(name: string, fallback: string) {
 
 export const appConfig = {
   appName: readEnv("VITE_APP_NAME", "MediGen"),
-  apiBaseUrl: readEnv("VITE_API_BASE_URL", "http://127.0.0.1:8000/api/v1"),
+  apiBaseUrl: readEnv(
+    "VITE_API_BASE_URL",
+    "http://127.0.0.1:8000/api/v1",
+  ),
 } as const;

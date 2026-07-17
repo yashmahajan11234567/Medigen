@@ -53,22 +53,17 @@ def create_application() -> FastAPI:
             database="connected" if ping_database() else "unavailable",
         )
 
+    
     @app.get("/", tags=["Root"])
     def root():
         return {
             "message": "Welcome to MediGen API",
-            "version": "settings.app_version",
+            "version": settings.app_version,
             "status": "online",
             "documentation": "/docs",
             "openapi": "/openapi.json",
             "health": "/health",
         }
-
-    print("\n========== REGISTERED ROUTES ==========")
-    for route in app.routes:
-        methods = ",".join(sorted(route.methods or []))
-        print(f"{methods:20} {route.path} -> {route.name}")
-    print("=======================================\n")
 
     return app
 
