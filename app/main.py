@@ -53,6 +53,12 @@ def create_application() -> FastAPI:
             database="connected" if ping_database() else "unavailable",
         )
 
+    print("\n========== REGISTERED ROUTES ==========")
+    for route in app.routes:
+        methods = ",".join(sorted(route.methods or []))
+        print(f"{methods:20} {route.path} -> {route.name}")
+    print("=======================================\n")
+
     return app
 
 
