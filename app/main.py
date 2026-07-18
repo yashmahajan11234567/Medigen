@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
+from app.api.routes.ocr import router as ocr_router
 from app.core.config import get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import configure_logging
@@ -44,6 +45,11 @@ def create_application() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+    app.include_router(ocr_router)
+    print("Registered routes:")
+    for route in app.routes:
+        if hasattr(route, "path"):
+            print(f"  {route.path} -> {route.name}")
 
     @app.get("/health", response_model=HealthResponse, tags=["Health"])
     def health_check() -> HealthResponse:
@@ -53,7 +59,7 @@ def create_application() -> FastAPI:
             database="connected" if ping_database() else "unavailable",
         )
 
-    
+
     @app.get("/", tags=["Root"])
     def root():
         return {

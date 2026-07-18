@@ -18,6 +18,20 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173", "https://medigen-frontend.onrender.com"]
     )
     log_level: str = "INFO"
+    # OCR Configuration
+    OCR_ENGINE: str = "paddleocr"
+    OCR_LANGUAGES: list[str] = ["en"]
+    OCR_CONFIDENCE_THRESHOLD: float = 0.6
+    OCR_MAX_UPLOAD_MB: int = 5
+    OCR_ALLOWED_MIME_TYPES: str = "image/png,image/jpeg,application/pdf"
+    OCR_TEMP_DIR: str = "/tmp/medigen_ocr"
+    OCR_ENGINE_TIMEOUT_SEC: int = 30
+    OCR_PREPROCESS_GRAYSCALE: bool = True
+    OCR_PREPROCESS_BINARIZE: bool = True
+    OCR_PREPROCESS_DESKEW: bool = True
+    OCR_PREPROCESS_APPLY_CLAHE: bool = True
+    OCR_PREPROCESS_DENOISE: bool = True
+    OCR_USE_ANGLE_CLS: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -37,4 +51,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
