@@ -1,14 +1,25 @@
-node_modules
-dist
-build
-coverage
-__pycache__
-.pytest_cache
+# .dockerignore for Medigen repository
+# Exclude Python caches, git history, IDE config, logs, build artifacts, and local env files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.egg-info/
+dist/
+build/
+*.log
 .git
-.github
-.vscode
-.idea
-docs
-tests
-*.pyc
+.gitignore
 .env
+.venv
+venv
+.idea/
+.vscode/
+*.log
+.DS_Store
+render.yaml
+render.yml
+*.md
+frontend/node_modules/

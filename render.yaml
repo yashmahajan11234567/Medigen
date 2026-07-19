@@ -1,0 +1,22 @@
+# Render service definition – Docker based
+services:
+  medigen-backend:
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    env:
+      # Database
+      - MEDIGEN_DATABASE_URL
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      # Application config
+      - MEDIGEN_APP_NAME
+      - MEDIGEN_ENVIRONMENT
+      - MEDIGEN_DEBUG
+      - MEDIGEN_API_V1_PREFIX
+      - MEDIGEN_SECRET_KEY
+      - MEDIGEN_JWT_ALGORITHM
+      - MEDIGEN_ACCESS_TOKEN_EXPIRE_MINUTES
+      - MEDIGEN_AUTO_CREATE_TABLES
+      - MEDIGEN_CORS_ORIGINS
+    plan: standard0X
