@@ -1,7 +1,7 @@
 # Production Dockerfile for Medigen backend
 # -------------------------------------------------
 # Use an official lightweight Python image.
-FROM python:3.12-slim AS base
+FROM python:3.11-slim AS base
 
 # Set environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1 \
