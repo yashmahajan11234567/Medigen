@@ -17,9 +17,7 @@ export class ApiError extends Error {
 
 export const apiClient = axios.create({
   baseURL: appConfig.apiBaseUrl,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  timeout: 15000,
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -27,6 +25,18 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Only set default Content-Type for JSON payloads (not FormData)
+  if (
+    config.data &&
+    !(config.data instanceof FormData) &&
+    typeof config.data === "object"
+  ) {
+    if (!config.headers["Content-Type"]) {
+      config.headers["Content-Type"] = "application/json";
+    }
+  }
+
   return config;
 });
 
@@ -35,11 +45,14 @@ apiClient.interceptors.response.use(
   (error) => {
     const payload = error.response?.data as ApiErrorPayload | undefined;
     return Promise.reject(
-      new ApiError(payload?.message ?? "We could not reach the MediGen API.", {
-        status: error.response?.status,
-        code: payload?.code,
-        details: payload?.details,
-      }),
+      new ApiError(
+        payload?.message ?? "We could not reach the MedicGen API.",
+        {
+          status: error.response?.status,
+          code: payload?.code,
+          details: payload?.details,
+        },
+      ),
     );
   },
 );

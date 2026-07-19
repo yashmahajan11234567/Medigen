@@ -1,0 +1,47 @@
+import { cn } from "@/lib/cn";
+
+interface ScheduleCardProps {
+  name: string;
+  dosage: string;
+  mealTiming: string;
+  reminder: string;
+  status: "upcoming" | "taken" | "missed";
+  onClick?: () => void;
+}
+
+const statusConfig = {
+  taken: { label: "Taken", dot: "bg-mint-500", bg: "bg-mint-50", text: "text-mint-700" },
+  upcoming: { label: "Upcoming", dot: "bg-brand-500", bg: "bg-brand-50", text: "text-brand-700" },
+  missed: { label: "Missed", dot: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-700" },
+};
+
+export function ScheduleCard({ name, dosage, mealTiming, reminder, status, onClick }: ScheduleCardProps) {
+  const s = statusConfig[status];
+
+  return (
+    <div
+      className="rounded-2xl border border-slate-100 bg-white p-4 transition hover:shadow-sm sm:p-5 cursor-pointer"
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900">{name}</p>
+          <p className="mt-0.5 text-sm text-slate-500">{dosage}</p>
+        </div>
+        <span className={cn("shrink-0 rounded-full px-3 py-1 text-xs font-semibold", s.bg, s.text)}>
+          {s.label}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+          {mealTiming}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+          {reminder}
+        </span>
+      </div>
+    </div>
+  );
+}

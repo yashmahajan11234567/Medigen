@@ -1,606 +1,305 @@
 import { useState } from "react";
-import { PageIntro } from "@/components/common/PageIntro";
-import { Input } from "@/components/common/Input";
-import { Button } from "@/components/common/Button";
-import { Card } from "@/components/common/Card";
-import { EmptyState } from "@/components/common/EmptyState";
-import { LoadingScreen } from "@/components/common/LoadingScreen";
-import { InlineError } from "@/components/feedback/InlineError";
+import { ScheduleForm } from "@/pages/scheduler/components/ScheduleForm";
+import { ScheduleEditModal } from "@/pages/scheduler/components/ScheduleEditModal";
+import { EmptySchedule } from "@/pages/scheduler/components/EmptySchedule";
+import { ScheduleCard } from "@/pages/scheduler/components/ScheduleCard";
 import { useScheduler } from "@/hooks/useScheduler";
-import { Calendar } from "lucide-react";
-import type {
-  ScheduleCreateRequest,
-  ScheduleUpdateRequest,
-  ScheduleResponse,
-} from "@/types/api";
+import { useToast } from "@/components/ui/ToastProvider";
+import { PageError } from "@/components/feedback/PageError";
 
 export function SchedulerPage() {
   const {
     schedules,
-    loading: schedulesLoading,
-    error: schedulesError,
+    todaySchedules,
+    loading,
+    refreshing,
+    error,
+    success,
+    refresh,
     createSchedule,
     updateSchedule,
-    deleteSchedule,
-    fetchSchedules,
-    todaySchedule,
-    loading: todayLoading,
-    error: todayError,
-    completeReminder,
-    fetchTodaySchedule,
   } = useScheduler();
 
-  const [formData, setFormData] = useState<ScheduleCreateRequest>({
-    medicine_id: 0,
-    dosage_pattern: "",
-    food_tyming: "before_food",
-    start_date: new Date().toISOString().split("T")[0],
-    end_date: null,
-    duration_days: null,
-    reminder_times: { morning: null, afternoon: null, night: null },
-    notes: null,
-    quantity: null,
-    quantity_unit: null,
-    purchase_date: null,
-    expiry_date: null,
-    pharmacy_name: null,
-    source: "manual",
-  });
+  const [shownSuccess, setShownSuccess] = useState(false);
+  const { addToast } = useToast();
+  const [editSchedule, setEditSchedule] = useState<{
+    schedule: typeof schedules[number];
+  } | null>(null);
 
-  const [editMode, setEditMode] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formLoading, setFormLoading] = useState(false);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const target = e.target;
-    const { name, type, value } = target;
-
-    let val: any;
-    if (type === "number") {
-      const numValue = value;
-      val = numValue === "" ? null : Number(numValue);
-    } else {
-      val = value;
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: val,
-    }));
+  // Format time from HH:MM:SS to h:mm A
+  const formatTime = (timeStr: string | null): string => {
+    if (!timeStr) return "";
+    const [hours, minutes] = timeStr.split(":");
+    const hoursNum = parseInt(hours, 10);
+    const minutesNum = parseInt(minutes, 10);
+    const period = hoursNum >= 12 ? "PM" : "AM";
+    const hours12 = hoursNum % 12 === 0 ? 12 : hoursNum % 10;
+    const minutesStr = minutesNum.toString().padStart(2, "0");
+    return `${hours12}:${minutesStr} ${period}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormLoading(true);
-    try {
-      if (editMode && editingId !== null) {
-        await updateSchedule(editingId, formData as unknown as ScheduleUpdateRequest);
-        // Reset form and hide
-        setEditMode(false);
-        setEditingId(null);
-        setFormData({
-          medicine_id: 0,
-          dosage_pattern: "",
-          food_tyming: "before_food",
-          start_date: new Date().toISOString().split("T")[0],
-          end_date: null,
-          duration_days: null,
-          reminder_times: { morning: null, afternoon: null, night: null },
-          notes: null,
-          quantity: null,
-          quantity_unit: null,
-          purchase_date: null,
-          expiry_date: null,
-          pharmacy_name: null,
-          source: "manual",
-        });
-        await fetchSchedules(); // Refresh list
+  // Transform a ScheduleResponse to ScheduleCardProps for today's display
+  const transformToCardProps = (schedule: any): any => {
+    // Format dosage: "1-0-1" -> "[1] - [0] - [1]"
+    const dosageParts = schedule.dosage_pattern.split("-");
+    const dosageFormatted = dosageParts
+      .map((part: string) => `[${part}]`)
+      .join(" - ");
+
+    // Format meal timing: "after_food" -> "After Meal"
+    const mealTimingFormatted = schedule.food_timing
+      .split("_")
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+      .replace("Food", "Meal");
+
+    // Get the first reminder time
+    const firstReminder = schedule.reminders?.[0];
+    const reminderTime = formatTime(firstReminder?.reminder_time ?? null);
+
+    // Determine status based on the first reminder's completion status
+    let status: "upcoming" | "taken" | "missed" = "upcoming";
+    if (firstReminder) {
+      if (firstReminder.completed_at !== null) {
+        status = "taken";
       } else {
-        await createSchedule(formData);
-        // Reset form
-        setFormData({
-          medicine_id: 0,
-          dosage_pattern: "",
-          food_tyming: "before_food",
-          start_date: new Date().toISOString().split("T")[0],
-          end_date: null,
-          duration_days: null,
-          reminder_times: { morning: null, afternoon: null, night: null },
-          notes: null,
-          quantity: null,
-          quantity_unit: null,
-          purchase_date: null,
-          expiry_date: null,
-          pharmacy_name: null,
-          source: "manual",
-        });
-        await fetchSchedules(); // Refresh list
+        // We don't have enough info to determine if it's missed, so we assume upcoming
+        status = "upcoming";
       }
-    } catch (err: any) {
-      // Error is shown via the hook's error state
-    } finally {
-      setFormLoading(false);
     }
-  };
 
-  const handleEdit = (schedule: ScheduleResponse) => {
-    setEditMode(true);
-    setEditingId(schedule.id);
-    // Build reminder_times object from reminders array
-    const reminderTimes: { morning: string | null; afternoon: string | null; night: string | null } = {
-      morning: null,
-      afternoon: null,
-      night: null,
+    return {
+      name: schedule.medicine_name,
+      dosage: dosageFormatted,
+      mealTiming: mealTimingFormatted,
+      reminder: reminderTime,
+      status,
     };
-    schedule.reminders?.forEach((reminder) => {
-      if (reminder.period === "morning") {
-        reminderTimes.morning = reminder.reminder_time;
-      } else if (reminder.period === "afternoon") {
-        reminderTimes.afternoon = reminder.reminder_time;
-      } else if (reminder.period === "night") {
-        reminderTimes.night = reminder.reminder_time;
-      }
-    });
-    setFormData({
-      medicine_id: schedule.medicine_id,
-      dosage_pattern: schedule.dosage_pattern,
-      food_tyming: schedule.food_timing,
-      start_date: schedule.start_date,
-      end_date: schedule.end_date,
-      duration_days: schedule.duration_days,
-      reminder_times: reminderTimes,
-      notes: schedule.notes ?? null,
-      quantity: schedule.quantity ?? null,
-      quantity_unit: schedule.quantity_unit ?? null,
-      purchase_date: schedule.purchase_date ?? null,
-      expiry_date: schedule.expiry_date ?? null,
-      pharmacy_name: schedule.pharmacy_name ?? null,
-      source: schedule.source,
-    });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this schedule?")) {
-      return;
-    }
-    try {
-      await deleteSchedule(id);
-      // The deleteSchedule hook updates the state, so we don't need to refetch.
-      // But we'll refetch to be safe.
-      await fetchSchedules();
-    } catch (err: any) {
-      alert("Failed to delete schedule: " + (err.response?.data?.message || err.message));
-    }
-  };
+  // Compute stats for today's schedule
+  const computedToday = todaySchedules.map((s: any) => ({
+    ...s,
+    ...transformToCardProps(s),
+  }));
+  const totalToday = computedToday.length;
+  const completedToday = computedToday.filter(
+    (c: any) => c.status === "taken"
+  ).length;
+  const remainingToday = totalToday - completedToday;
 
-  const handleCompleteReminder = async (reminderId: number) => {
-    try {
-      await completeReminder(reminderId);
-      // Refresh today's schedule after completion
-      await fetchTodaySchedule();
-      // Also refresh schedules in case completion affects status
-      await fetchSchedules();
-    } catch (err: any) {
-      alert("Failed to complete reminder: " + (err.response?.data?.message || err.message));
-    }
-  };
+  const stats = [
+    { label: "Medicines Today", value: totalToday, accent: "bg-brand-500" },
+    { label: "Taken", value: completedToday, accent: "bg-mint-500" },
+    { label: "Remaining", value: remainingToday, accent: "bg-amber-500" },
+  ];
+
+  // Show toast when success is set and we haven't shown it yet
+  if (success && !shownSuccess) {
+    addToast({
+      title: "Schedule updated.",
+      description: success,
+      variant: "success",
+    });
+    setShownSuccess(true);
+  }
+
+  // Reset shownSuccess when success is cleared
+  if (!success && shownSuccess) {
+    setShownSuccess(false);
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6">
+        <div className="w-full max-w-md">
+          <PageError title="Error" description={error} onRetry={refresh} />
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-slate-900 mb-4">
+            Loading your schedule...
+          </h1>
+          <p className="mb-4">
+            Fetching your medicine schedule from the server.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <PageIntro
-        eyebrow="Scheduler"
-        title="Medication Schedule"
-        description="Manage your medication reminders and dosing schedule."
-      />
-      {schedulesError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-          <InlineError title="Error" message={schedulesError} />
-        </div>
-      )}
-      {todayError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-          <InlineError title="Today's Schedule Error" message={todayError} />
-        </div>
-      )}
-      <div className="space-y-6">
-        <Card>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Add Schedule
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Input
-                  label="Medicine ID"
-                  name="medicine_id"
-                  type="number"
-                  value={formData.medicine_id ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Dosage Pattern (e.g., 1-0-1)"
-                  name="dosage_pattern"
-                  type="text"
-                  value={formData.dosage_pattern ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 font-medium text-slate-900">
-                  Food Timing
-                </label>
-                <select
-                  name="food_tyming"
-                  value={formData.food_tyming}
-                  onChange={handleChange}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="before_food">Before Food</option>
-                  <option value="after_food">After Food</option>
-                </select>
-              </div>
-              <div>
-                <Input
-                  label="Start Date (YYYY-MM-DD)"
-                  name="start_date"
-                  type="date"
-                  value={formData.start_date ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="End Date (optional)"
-                  name="end_date"
-                  type="date"
-                  value={formData.end_date ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Duration Days (optional)"
-                  name="duration_days"
-                  type="number"
-                  value={formData.duration_days ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Quantity (optional)"
-                  name="quantity"
-                  type="number"
-                  value={formData.quantity ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Quantity Unit (optional)"
-                  name="quantity_unit"
-                  type="text"
-                  value={formData.quantity_unit ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Purchase Date (optional)"
-                  name="purchase_date"
-                  type="date"
-                  value={formData.purchase_date ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Expiry Date (optional)"
-                  name="expiry_date"
-                  type="date"
-                  value={formData.expiry_date ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <Input
-                  label="Pharmacy Name (optional)"
-                  name="pharmacy_name"
-                  type="text"
-                  value={formData.pharmacy_name ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 font-medium text-slate-900">
-                  Source
-                </label>
-                <select
-                  name="source"
-                  value={formData.source}
-                  onChange={handleChange}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                >
-                  <option value="manual">Manual</option>
-                  <option value="pharmacy_bill">Pharmacy Bill</option>
-                  <option value="generic_finder">Generic Finder</option>
-                </select>
-              </div>
-              <div>
-                <label className="block mb-1 font-medium text-slate-900">
-                  Reminder Times
-                </label>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div>
-                    <Input
-                      label="Morning (HH:MM)"
-                      name="morning"
-                      type="text"
-                      value={formData.reminder_times?.morning ?? ""}
-                      onChange={handleChange}
-                      className="mb-2"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      label="Afternoon (HH:MM)"
-                      name="afternoon"
-                      type="text"
-                      value={formData.reminder_times?.afternoon ?? ""}
-                      onChange={handleChange}
-                      className="mb-2"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      label="Night (HH:MM)"
-                      name="night"
-                      type="text"
-                      value={formData.reminder_times?.night ?? ""}
-                      onChange={handleChange}
-                      className="mb-2"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <Input
-                  label="Notes (optional)"
-                  name="notes"
-                  type="text"
-                  value={formData.notes ?? ""}
-                  onChange={handleChange}
-                  className="mb-2"
-                />
-              </div>
-            </div>
-
-            <Button type="submit" variant="primary" disabled={formLoading}>
-              {formLoading ? "Saving..." : "Add Schedule"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setEditMode(false);
-                setEditingId(null);
-                setFormData({
-                  medicine_id: 0,
-                  dosage_pattern: "",
-                  food_tyming: "before_food",
-                  start_date: new Date().toISOString().split("T")[0],
-                  end_date: null,
-                  duration_days: null,
-                  reminder_times: { morning: null, afternoon: null, night: null },
-                  notes: null,
-                  quantity: null,
-                  quantity_unit: null,
-                  purchase_date: null,
-                  expiry_date: null,
-                  pharmacy_name: null,
-                  source: "manual",
-                });
-              }}
+    <div className="space-y-6">
+      {/* Custom header with schedule button */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
             >
-              Cancel
-            </Button>
-          </form>
-        </Card>
-
-        <Card>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Schedule List ({schedules.length})
-          </h2>
-          {schedulesLoading && schedules.length === 0 ? (
-            <LoadingScreen
-              title="Loading schedules…"
-              description="Please wait while we load your schedules."
-            />
-          ) : schedulesError ? (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-              <InlineError title="Load error" message={schedulesError} />
-            </div>
-          ) : schedules.length === 0 ? (
-            <EmptyState
-              icon={Calendar}
-              title="No schedules yet"
-              description="Add your first schedule using the form above."
-            />
-          ) : (
-            <div className="space-y-4">
-              {schedules.map((schedule) => (
-                <div
-                  key={schedule.id}
-                  className="p-4 bg-slate-50 border border-slate-200 rounded-lg"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-slate-900">
-                        Schedule #{schedule.id}
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        Medicine ID: {schedule.medicine_id}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {schedule.dosage_pattern} • {schedule.food_timing}
-                      </p>
-                      {schedule.start_date && (
-                        <p className="text-sm text-slate-600">
-                          Starts:{" "}
-                            {new Date(schedule.start_date).toLocaleDateString()}
-                        </p>
-                      )}
-                      {schedule.end_date && (
-                        <p className="text-sm text-slate-600">
-                          Ends:{" "}
-                            {new Date(schedule.end_date).toLocaleDateString()}
-                        </p>
-                      )}
-                      {schedule.notes && (
-                        <p className="text-sm text-slate-600 italic">
-                          {schedule.notes}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      <span>{schedule.status}</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex justify-end space-x-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleEdit(schedule)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDelete(schedule.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Today's Schedule ({todaySchedule.length})
-          </h2>
-          {todayLoading && todaySchedule.length === 0 ? (
-            <LoadingScreen
-              title="Loading today's schedule…"
-              description="Please wait while we load today's schedule."
-            />
-          ) : todayError ? (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-              <InlineError title="Load error" message={todayError} />
-            </div>
-          ) : todaySchedule.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-slate-500">
-                No medications scheduled for today.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {todaySchedule.map((schedule) => (
-                <div
-                  key={schedule.id}
-                  className="p-4 bg-slate-50 border border-slate-200 rounded-lg"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-slate-900">
-                        Schedule #{schedule.id}
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        Medicine ID: {schedule.medicine_id}
-                      </p>
-                      <p className="text-sm text-slice-600">
-                        {schedule.dosage_pattern} • {schedule.food_timing}
-                      </p>
-                      {schedule.start_date && (
-                        <p className="text-sm text-slate-600">
-                          Starts:{" "}
-                            {new Date(schedule.start_date).toLocaleDateString()}
-                        </p>
-                      )}
-                      {schedule.end_date && (
-                        <p className="text-sm text-slate-600">
-                          Ends:{" "}
-                            {new Date(schedule.end_date).toLocaleDateString()}
-                        </p>
-                      )}
-                      {schedule.notes && (
-                        <p className="text-sm text-slate-600 italic">
-                          {schedule.notes}
-                        </p>
-                      )}
-                      {schedule.reminders && schedule.reminders.length > 0 ? (
-                        <div className="mt-3 space-y-2">
-                          <p className="font-medium text-slate-700">
-                            Reminders for today:
-                          </p>
-                          {schedule.reminders.map((reminder) => (
-                            <div
-                              key={reminder.id}
-                              className="flex items-center justify-between p-2 bg-white/50 rounded"
-                            >
-                              <span>
-                                {reminder.period}: {
-                                  new Date(
-                                    `1970-01-01T${reminder.reminder_time}:00Z`
-                                  ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                                }
-                              </span>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleCompleteReminder(reminder.id)}
-                                disabled={reminder.completed_at !== null}
-                              >
-                                {reminder.completed_at ? "Completed" : "Complete"}
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          No reminders scheduled for today.
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      <span>{schedule.status}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">Medicine Scheduler</h1>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Never miss your medicines.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              // We'll just focus on the form or open a modal for creating a schedule.
+              // For now, we'll do nothing because the form is always visible.
+              // Alternatively, we could open a modal for creating a schedule.
+              // We'll keep it simple and leave the form visible.
+            }}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="mr-2 h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={refresh}
+            className={`flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50 ${
+              refreshing ? "animate-spin" : ""
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16" />
+            </svg>
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {stats.map((stat, index) => (
+          <div
+            key={index}
+            className={`p-4 text-center ${
+              refreshing ? "opacity-50" : ""
+            }`}
+          >
+            <div className="flex flex-col items-center">
+              <p className="text-xs font-medium text-slate-500">{stat.label}</p>
+              <div className="mt-2 flex h-9 w-24 items-center justify-center rounded-lg bg-slate-200">
+                {refreshing ? (
+                  <div className="w-full h-full" />
+                ) : (
+                  <span className="text-2xl font-bold text-slate-900">{stat.value}</span>
+                )}
+              </div>
+              <div className="mt-2 h-2 w-24 rounded-full bg-slate-200">
+                {refreshing ? (
+                  <div className="w-full h-full" />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Today's schedule list */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="h-1 w-8 rounded-full bg-brand-500" />
+          <h2 className="text-lg font-semibold text-slate-900">
+            Today's Scheduled Medicines
+          </h2>
+        </div>
+        {todaySchedules.length === 0 ? (
+          <EmptySchedule />
+        ) : (
+          <div className="space-y-3">
+            {todaySchedules.map((schedule) => {
+              const cardProps = transformToCardProps(schedule);
+              return (
+                <div
+                  key={schedule.id}
+                  className={`opacity-${refreshing ? 50 : 100} transition-opacity`}
+                >
+                  <ScheduleCard
+                    name={cardProps.name}
+                    dosage={cardProps.dosage}
+                    mealTiming={cardProps.mealTiming}
+                    reminder={cardProps.reminder}
+                    status={cardProps.status}
+                    onClick={() => {
+                      setEditSchedule({
+                        schedule,
+                      });
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Schedule Form (for creating new schedules) */}
+      <ScheduleForm onCreate={async (payload) => {
+        try {
+          await createSchedule(payload);
+          // After successful creation, we refresh the data
+          await refresh();
+        } catch (err) {
+          // Error is handled in the createSchedule function (which sets error state)
+          // We don't need to do anything here.
+        }
+      }} />
+
+      {/* Edit Schedule Modal */}
+      {editSchedule && (
+        <ScheduleEditModal
+          open={true}
+          onClose={() => setEditSchedule(null)}
+          schedule={editSchedule.schedule}
+          updateSchedule={async (id, payload) => {
+            try {
+              await updateSchedule(id, payload);
+              // After successful update, we refresh the data
+              await refresh();
+              // Close the modal
+              setEditSchedule(null);
+            } catch (err) {
+              // Error is handled in the updateSchedule function (which sets error state)
+              // We don't need to do anything here.
+            }
+          }}
+        />
+      )}
+    </div>
   );
 }

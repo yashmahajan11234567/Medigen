@@ -1,170 +1,131 @@
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/api-client";
-import type {
-  ScheduleListResponse,
-  ScheduleResponse,
-  ScheduleCreateRequest,
-  ScheduleUpdateRequest,
-  ScheduleDeleteResponse,
-} from "@/types/api";
+import { schedulerService } from "@/services/scheduler.service";
+import type { ScheduleResponse, ScheduleCreateRequest, ScheduleUpdateRequest } from "@/types/api";
 
-interface UseSchedulerResult {
-  schedules: ScheduleResponse[];
-  todaySchedule: ScheduleResponse[]; // assume today endpoint returns list
-  loading: boolean;
-  todayLoading: boolean;
-  error: string | null;
-  todayError: string | null;
-  createSchedule: (payload: ScheduleCreateRequest) => Promise<void>;
-  updateSchedule: (id: number, payload: ScheduleUpdateRequest) => Promise<void>;
-  deleteSchedule: (id: number) => Promise<void>;
-  completeReminder: (reminderId: number) => Promise<void>;
-  fetchSchedules: () => Promise<void>;
-  fetchTodaySchedule: () => Promise<void>;
-}
-
-export function useScheduler(): UseSchedulerResult {
-  const [schedules, setSchedules] = useState<ScheduleResponse[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<ScheduleResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [todayLoading, setTodayLoading] = useState(false);
+export function useScheduler() {
+  const [schedules, setSchedules] = useState<Array<ScheduleResponse>>([]);
+  const [todaySchedules, setTodaySchedules] = useState<Array<ScheduleResponse>>([]);
+  const [loading, setLoading] = useState<boolean>(true); // initial load
+  const [refreshing, setRefreshing] = useState<boolean>(false); // manual refresh
   const [error, setError] = useState<string | null>(null);
-  const [todayError, setTodayError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const fetchSchedules = async () => {
-    setLoading(true);
+  const fetchSchedules = async (isRefresh: boolean = false) => {
+    if (!isRefresh) {
+      setLoading(true);
+      setError(null);
+    }
+    try {
+      const response = await schedulerService.getAll();
+      setSchedules(response.items);
+    } catch (err: any) {
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to fetch schedules";
+      setError(message);
+      setSchedules([]);
+    } finally {
+      if (!isRefresh) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const fetchTodaySchedules = async (isRefresh: boolean = false) => {
+    if (!isRefresh) {
+      setLoading(true);
+      setError(null);
+    }
+    try {
+      const response = await schedulerService.getToday();
+      setTodaySchedules(response.items);
+    } catch (err: any) {
+      // Only set error if not refreshing to avoid overwriting the main error?
+      // We'll set error only if it's the initial load.
+      if (!isRefresh) {
+        const message =
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to fetch today's schedule";
+        setError(message);
+      }
+      setTodaySchedules([]);
+    } finally {
+      if (!isRefresh) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const createSchedule = async (payload: ScheduleCreateRequest) => {
+    try {
+      const response = await schedulerService.create(payload);
+      await refresh(); // refetch both lists
+      setSuccess("Schedule created.");
+      return response;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to create schedule";
+      setError(message);
+      throw err;
+    }
+  };
+
+  const updateSchedule = async (id: number, payload: ScheduleUpdateRequest) => {
+    try {
+      const response = await schedulerService.update(id, payload);
+      await refresh(); // refetch both lists
+      setSuccess("Schedule updated.");
+      return response;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to update schedule";
+      setError(message);
+      throw err;
+    }
+  };
+
+  const refresh = async () => {
+    setRefreshing(true);
+    setSuccess(null);
     setError(null);
     try {
-      const resp = await apiClient.get<ScheduleListResponse>("/schedule");
-      setSchedules(resp.data.items);
+      await Promise.all([
+        fetchSchedules(true), // true indicates it's a refresh
+        fetchTodaySchedules(true),
+      ]);
+      setSuccess("Schedule updated.");
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || err.message || "Failed to load schedules"
-      );
-      console.error("Schedule fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTodaySchedule = async () => {
-    setTodayLoading(true);
-    setTodayError(null);
-    try {
-      const resp = await apiClient.get<ScheduleListResponse>("/schedule/today");
-      setTodaySchedule(resp.data.items);
-    } catch (err: any) {
-      setTodayError(
+      const message =
         err.response?.data?.message ||
-          err.message ||
-          "Failed to load today's schedule"
-      );
-      console.error("Today schedule fetch error:", err);
+        err.message ||
+        "Failed to refresh schedule";
+      setError(message);
     } finally {
-      setTodayLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const createSchedule = async (
-    payload: ScheduleCreateRequest
-  ): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.post<ScheduleResponse>("/schedule", payload);
-      // after creation, refresh list
-      await fetchSchedules();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to create schedule"
-      );
-      console.error("Schedule create error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateSchedule = async (
-    id: number,
-    payload: ScheduleUpdateRequest
-  ): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.put<ScheduleResponse>(`/schedule/${id}`, payload);
-      await fetchSchedules();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          `Failed to update schedule ${id}`
-      );
-      console.error("Schedule update error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteSchedule = async (id: number): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.delete<ScheduleDeleteResponse>(`/schedule/${id}`);
-      await fetchSchedules();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          `Failed to delete schedule ${id}`
-      );
-      console.error("Schedule delete error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const completeReminder = async (
-    reminderId: number
-  ): Promise<void> => {
-    // assuming we don't need separate loading state for this action
-    try {
-      await apiClient.post<{ message: string }>(
-        "/schedule/complete",
-        { reminder_id: reminderId }
-      );
-      // after completing, refresh today schedule and possibly schedules (if completion affects status)
-      await fetchTodaySchedule();
-      await fetchSchedules();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          `Failed to complete reminder ${reminderId}`
-      );
-      console.error("Complete reminder error:", err);
-    }
-  };
-
-  // initial load
+  // Fetch on mount
   useEffect(() => {
     fetchSchedules();
-    fetchTodaySchedule();
+    fetchTodaySchedules();
   }, []);
 
   return {
     schedules,
-    todaySchedule,
+    todaySchedules,
     loading,
-    todayLoading,
+    refreshing,
     error,
-    todayError,
+    success,
+    refresh,
     createSchedule,
     updateSchedule,
-    deleteSchedule,
-    completeReminder,
-    fetchSchedules,
-    fetchTodaySchedule,
   };
 }

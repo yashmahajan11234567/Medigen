@@ -1,0 +1,90 @@
+import { useState } from "react";
+import { Card } from "@/components/common/Card";
+import { SectionTitle } from "@/pages/dashboard/components/SectionTitle";
+import { DurationPicker } from "@/pages/scheduler/components/DurationPicker";
+import { DosageSelector } from "@/pages/scheduler/components/DosageSelector";
+import { DosageExplanation } from "@/pages/scheduler/components/DosageExplanation";
+import { MealTimingSelector } from "@/pages/scheduler/components/MealTimingSelector";
+import { ReminderPicker } from "@/pages/scheduler/components/ReminderPicker";
+
+export function ScheduleForm() {
+  const [medicineName, setMedicineName] = useState("");
+  const [duration, setDuration] = useState("7 Days");
+  const [morning, setMorning] = useState(1);
+  const [afternoon, setAfternoon] = useState(0);
+  const [night, setNight] = useState(1);
+  const [mealTiming, setMealTiming] = useState("After Meal");
+  const [reminder, setReminder] = useState("08:00");
+  const [notes, setNotes] = useState("");
+
+  const handleDosageChange = (slot: "morning" | "afternoon" | "night") => {
+    if (slot === "morning") setMorning((v) => (v === 0 ? 1 : 0));
+    if (slot === "afternoon") setAfternoon((v) => (v === 0 ? 1 : 0));
+    if (slot === "night") setNight((v) => (v === 0 ? 1 : 0));
+  };
+
+  return (
+    <Card className="p-5 sm:p-6">
+      <SectionTitle>Add Schedule</SectionTitle>
+
+      <div className="mt-5 space-y-5">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Medicine Name</label>
+          <input
+            type="text"
+            value={medicineName}
+            onChange={(e) => setMedicineName(e.target.value)}
+            placeholder="Search or type medicine name..."
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 shadow-soft transition focus:border-brand-300 focus:outline-none focus:ring-4 focus:ring-brand-100"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Duration</label>
+          <DurationPicker value={duration} onChange={setDuration} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Dosage Pattern</label>
+          <DosageSelector
+            morning={morning}
+            afternoon={afternoon}
+            night={night}
+            onChange={handleDosageChange}
+          />
+          <div className="mt-2">
+            <DosageExplanation morning={morning} afternoon={afternoon} night={night} />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Meal Timing</label>
+          <MealTimingSelector value={mealTiming} onChange={setMealTiming} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Reminder Time</label>
+          <ReminderPicker value={reminder} onChange={setReminder} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">Notes</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Optional notes..."
+            rows={3}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 shadow-soft transition focus:border-brand-300 focus:outline-none focus:ring-4 focus:ring-brand-100"
+          />
+        </div>
+
+        <button
+          type="button"
+          className="w-full rounded-2xl bg-brand-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-200 transition hover:bg-brand-600 active:scale-[0.98]"
+        >
+          Save Schedule
+        </button>
+      </div>
+    </Card>
+  );
+}

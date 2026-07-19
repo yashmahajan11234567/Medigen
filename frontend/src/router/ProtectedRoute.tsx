@@ -3,10 +3,10 @@ import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { useAuth } from "@/hooks/useAuth";
 
 export function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (loading) {
     return <LoadingScreen />;
   }
 

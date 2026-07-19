@@ -1,12 +1,13 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
-import { DashboardPage } from "@/pages/app/DashboardPage";
+import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { GenericFinderPage } from "@/pages/generic/GenericFinderPage";
 import { InventoryPage } from "@/pages/inventory/InventoryPage";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { NotFoundPage } from "@/pages/system/NotFoundPage";
 import { SchedulerPage } from "@/pages/scheduler/SchedulerPage";
+import { ScannerPage } from "@/pages/scanner/ScannerPage";
 import { MedicalRecordsPage } from "@/pages/medical-records/MedicalRecordsPage";
 import { ProfilePage } from "@/pages/profile/ProfilePage";
 import { GuestRoute } from "@/router/GuestRoute";
@@ -39,6 +40,10 @@ export const router = createBrowserRouter([
           {
             path: "/dashboard",
             element: <DashboardPage />,
+          },
+          {
+            path: "/scan",
+            element: <ScannerPage />,
           },
           {
             path: "/schedule",

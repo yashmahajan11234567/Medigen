@@ -305,9 +305,9 @@ function InventorySummaryCard({
 }
 
 export function DashboardPage() {
-  const { dashboard, error, isLoading, refresh } = useDashboard();
+  const { dashboard, error, loading, refetch } = useDashboard();
 
-  if (isLoading && !dashboard) {
+  if (loading && !dashboard) {
     return <DashboardLoadingState />;
   }
 
@@ -336,7 +336,7 @@ export function DashboardPage() {
             <Button
               variant="secondary"
               icon={<RefreshCcw className="h-4 w-4" />}
-              onClick={refresh}
+              onClick={refetch}
             >
               Retry loading dashboard
             </Button>

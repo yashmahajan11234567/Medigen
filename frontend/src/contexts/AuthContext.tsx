@@ -18,10 +18,12 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
+  loading: boolean;
   login: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: () => void;
+  getToken: () => string | null;
+  getUser: () => User | null;
   refreshProfile: () => Promise<void>;
 }
 
@@ -32,13 +34,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [token, setToken] = useState<string | null>(
     () => window.localStorage.getItem(AUTH_TOKEN_KEY),
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function bootstrap() {
       const existingToken = window.localStorage.getItem(AUTH_TOKEN_KEY);
       if (!existingToken) {
-        setIsLoading(false);
+        setLoading(false);
         return;
       }
 
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setToken(null);
         setUser(null);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     }
 
@@ -76,6 +78,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setUser(null);
   }
 
+  function getToken(): string | null {
+    return token;
+  }
+
+  function getUser(): User | null {
+    return user;
+  }
+
   async function refreshProfile() {
     if (!window.localStorage.getItem(AUTH_TOKEN_KEY)) {
       throw new ApiError("You are not signed in.", {
@@ -93,13 +103,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       user,
       token,
       isAuthenticated: Boolean(token && user),
-      isLoading,
+      loading,
       login,
       register,
       logout,
+      getToken,
+      getUser,
       refreshProfile,
     }),
-    [isLoading, token, user],
+    [loading, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
