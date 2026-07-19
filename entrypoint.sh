@@ -9,6 +9,11 @@ if [ -n "$DATABASE_URL" ]; then
 fi
 echo "Alembic config: $(find . -name 'alembic.ini' -print -quit)"
 echo "Running Alembic migrations..."
+# If the alembic_version table does not exist, stamp to head first
+if ! alembic current 2>/dev/null; then
+    echo "Alembic version table not found, stamping to head..."
+    alembic stamp head
+fi
 alembic upgrade head
 echo "Migrations completed."
 
