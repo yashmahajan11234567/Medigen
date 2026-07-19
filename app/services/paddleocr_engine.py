@@ -35,9 +35,8 @@ class PaddleOCREngine(OCREngineInterface):
             else:
                 lang = str(lang_setting) if lang_setting else "en"
             self._ocr = PaddleOCR(
-                use_angle_cls=settings.OCR_USE_ANGLE_CLS,
+                use_textline_orientation=settings.OCR_USE_ANGLE_CLS,
                 lang=lang,
-                show_log=False,
             )
             logger.info("PaddleOCR model initialized.")
         return self._ocr
@@ -76,7 +75,8 @@ class PaddleOCREngine(OCREngineInterface):
             ocr = self._get_ocr()
             # PaddleOCR expects a numpy array; returns list of pages, each page is list of detections
             # Each detection: [bounding_box, (text, confidence)]
-            result = ocr.ocr(img, cls=False)
+            # Note: orientation classification is controlled via constructor parameter use_textline_orientation
+            result = ocr.ocr(img)
 
             # Process results
             if not result or not result[0]:
