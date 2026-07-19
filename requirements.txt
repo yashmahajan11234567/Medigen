@@ -13,4 +13,3 @@ psycopg[binary]==3.3.4
 # OCR dependencies
 paddleocr==2.7.0.3
 opencv-python==4.6.0.66
-PyMuPDF==1.26.3
