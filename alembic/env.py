@@ -15,7 +15,14 @@ if config.config_file_name is not None:
 
 load_all_models()
 target_metadata = Base.metadata
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+
+database_url = get_settings().database_url
+# Use psycopg3 dialect for PostgreSQL if needed
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace(
+        "postgresql://", "postgresql+psycopg://", 1
+    )
+config.set_main_option("sqlalchemy.url", database_url)
 
 
 def run_migrations_offline() -> None:

@@ -10,6 +10,11 @@ from app.core.config import get_settings
 
 class DatabaseSessionManager:
     def __init__(self, database_url: str) -> None:
+        # Use psycopg3 dialect for PostgreSQL if needed
+        if database_url.startswith("postgresql://"):
+            database_url = database_url.replace(
+                "postgresql://", "postgresql+psycopg://", 1
+            )
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
         self.engine = create_engine(database_url, connect_args=connect_args, future=True)
         self.session_factory = sessionmaker(
