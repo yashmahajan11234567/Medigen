@@ -5,6 +5,7 @@ interface ScanOptionCardProps {
   title: string;
   description: string;
   accent: "blue" | "green" | "amber" | "purple";
+  onClick?: () => void;
 }
 
 const accentMap = {
@@ -14,12 +15,13 @@ const accentMap = {
   purple: { bg: "bg-violet-50", text: "text-violet-600", border: "hover:border-violet-200" },
 };
 
-export function ScanOptionCard({ icon: Icon, title, description, accent }: ScanOptionCardProps) {
+export function ScanOptionCard({ icon: Icon, title, description, accent, onClick }: ScanOptionCardProps) {
   const a = accentMap[accent];
 
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`flex flex-col items-center gap-2.5 rounded-3xl border border-white/70 bg-white/90 p-5 text-left shadow-card backdrop-blur-sm transition ${a.border} hover:shadow-md sm:p-6`}
     >
       <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${a.bg} ${a.text} sm:h-14 sm:w-14`}>

@@ -1,5 +1,21 @@
 import { cn } from "@/lib/cn";
 
+export interface MedicineItem {
+  id: number;
+  name: string;
+  genericName: string;
+  brandName: string;
+  type: "tablet" | "capsule" | "syrup" | "cream" | "injection" | "ointment" | "drops" | "inhaler" | "other";
+  quantity: number | null;
+  quantityUnit: string | null;
+  expiryDate: string | null;
+  purchaseDate: string | null;
+  imagePath: string | null;
+  notes: string | null;
+  status: "healthy" | "low" | "expiring" | "expired";
+  storageInstructions: string;
+}
+
 export function MedicineCard({ medicine, onClick }: { medicine: MedicineItem; onClick: (m: MedicineItem) => void }) {
   const statusConfig = {
     healthy: { label: "Healthy", dot: "bg-mint-500", bg: "bg-mint-50", text: "text-mint-700" },
@@ -23,7 +39,7 @@ export function MedicineCard({ medicine, onClick }: { medicine: MedicineItem; on
       <p className="mt-0.5 text-xs capitalize text-slate-400">{medicine.type}</p>
       <div className="mt-3 flex items-center justify-between">
         <span className="text-sm font-medium text-slate-700">
-          {medicine.quantity} {medicine.unit}
+          {medicine.quantity} {medicine.quantityUnit}
         </span>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", s.bg, s.text)}>
           {s.label}

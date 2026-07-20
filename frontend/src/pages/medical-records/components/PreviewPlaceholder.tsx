@@ -1,7 +1,9 @@
 import { FileText, Image, File } from "lucide-react";
+import { cn } from "@/lib/cn";
 
 interface PreviewPlaceholderProps {
   type: "prescription" | "image" | "pdf";
+  className?: string;
 }
 
 const icons = {
@@ -16,13 +18,17 @@ const gradients = {
   pdf: "from-rose-100 to-rose-50",
 };
 
-export function PreviewPlaceholder({ type }: PreviewPlaceholderProps) {
+export function PreviewPlaceholder({ type, className }: PreviewPlaceholderProps) {
   const Icon = icons[type];
   const gradient = gradients[type];
 
   return (
     <div
-      className={`flex h-48 items-center justify-center rounded-3xl bg-gradient-to-br ${gradient} sm:h-56`}
+      className={cn(
+        "flex h-48 items-center justify-center rounded-3xl bg-gradient-to-br sm:h-56",
+        gradient,
+        className
+      )}
     >
       <div className="flex flex-col items-center gap-2">
         <Icon className="h-10 w-10 text-slate-400" />

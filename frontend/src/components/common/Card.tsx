@@ -12,3 +12,39 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
     />
   );
 }
+
+export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col space-y-2 pb-4",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function CardTitle({ className, ...props }: React.ComponentPropsWithoutRef<'h2'>) {
+  return (
+    <h2
+      className={cn(
+        "text-2xl font-bold text-gray-900",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        "pt-0",
+        className,
+      )}
+      {...props}
+    />
+  );
+}

@@ -43,7 +43,6 @@ export interface DashboardScheduleItem {
   dosage_amount: string | null;
   dosage_unit: string | null;
   frequency: string | null;
-  recall: any; // can keep type any to avoid breaking; not used in frontend
   reminder_time: string | null;
 }
 
@@ -87,6 +86,60 @@ export interface GenericFinderSearchResponse {
 export interface GenericMedicineDetailResponse {
   medicine: GenericMedicineSummary;
   is_generic: boolean;
+}
+
+// OCR types
+export interface ScanQualityDiagnostics {
+  issues: string[];
+  blur_score: number | null;
+  brightness: number | null;
+  contrast: number | null;
+  is_pass: boolean;
+}
+
+export interface MedicineEntry {
+  medicine_name: string;
+  strength: string | null;
+  dosage_unit: string | null;
+  quantity: number | null;
+}
+
+export interface BillParseResult {
+  medicines: MedicineEntry[];
+  raw_text: string;
+}
+
+export interface DocumentParseResult {
+  document_type: string;
+  patient_name: string | null;
+  doctor_name: string | null;
+  hospital_or_lab: string | null;
+  report_date: string | null;
+  medicines: MedicineEntry[];
+  diagnosis_text: string | null;
+  notes: string | null;
+  raw_text: string;
+}
+
+export interface OCRCompositionResponse {
+  ocr_confidence: number | null;
+  quality_diagnostics: ScanQualityDiagnostics | null;
+  processing_time_ms: number;
+  result: GenericFinderSearchResponse;
+}
+
+export interface OCRPharmacyBillResponse {
+  ocr_confidence: number | null;
+  quality_diagnostics: ScanQualityDiagnostics | null;
+  processing_time_ms: number;
+  result: BillParseResult;
+}
+
+export interface OCRDocumentResponse {
+  ocr_confidence: number | null;
+  quality_diagnostics: ScanQualityDiagnostics | null;
+  processing_time_ms: number;
+  result: DocumentParseResult;
 }
 
 export interface AddToInventoryRequest {
@@ -305,6 +358,14 @@ export interface MedicalRecordDocumentCreate {
   follow_up_date: string | null; // ISO date string
   diagnosis: string | null;
   notes: string | null;
+    ocr_confidence?: number | null;
+    ocr_processed_at?: string | null;
+    ocr_source?: string;
+    blur_score?: number | null;
+    brightness?: number | null;
+    contrast?: number | null;
+    is_pass?: boolean | null;
+    issues?: string[];
 }
 
 export interface MedicalRecordCreateRequest {
@@ -388,4 +449,27 @@ export interface MedicalRecordListResponse {
 
 export interface MedicalRecordDeleteResponse {
   message: string;
+}
+
+export interface MedicineForInventory {
+  id: string;
+  medicineId: number | null;
+  name: string;
+  genericName: string | null;
+  brandName: string | null;
+  type: MedicineType;
+  strength: string | null;
+  dosageUnit: string | null;
+  quantity: number | null;
+  quantityUnit: string | null;
+  expiryDate: string | null;
+  isSelected: boolean;
+  isKnown: boolean;
+  isDuplicate: boolean;
+  existingInventoryItem: any | null;
+  submissionStatus: string;
+  error: string | null;
+  editField?: string;
+  editValue?: string;
+  randomId: string;
 }

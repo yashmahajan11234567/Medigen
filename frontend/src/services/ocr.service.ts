@@ -1,37 +1,50 @@
-import { apiClient } from "@/lib/api-client";
-import type { GenericMedicineSummary } from "@/types/api";
+import axios from "axios";
+import { AUTH_TOKEN_KEY } from "@/lib/storage";
+import { appConfig } from "@/lib/app-config";
+import type {
+  OCRCompositionResponse,
+  OCRPharmacyBillResponse,
+  OCRDocumentResponse,
+} from "@/types/api";
 
-/**
- * Represents a medicine extracted from an OCR scan.
- * Extends the existing GenericMedicineSummary to reuse known fields.
- */
-export interface OcrExtractedMedicine extends GenericMedicineSummary {
-  // Additional OCR‑specific fields could be added here if needed
-  confidence?: number;
-}
+const OCR_BASE = appConfig.apiBaseUrl.replace("/api/v1", "");
 
-/**
- * Uploads an image file to the OCR backend and returns the extracted medicines.
- * The backend is expected to accept multipart/form-data at /api/v1/ocr/process
- * and respond with an array of extracted medicine details.
- */
+const ocrClient = axios.create({
+  baseURL: OCR_BASE,
+  timeout: 60000,
+});
+
+ocrClient.interceptors.request.use((config) => {
+  const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  config.headers["Content-Type"] = "multipart/form-data";
+  return config;
+});
+
 export const ocrService = {
-  async processImage(formData: FormData): Promise<OcrExtractedMedicine[]> {
-    try {
-      const response = await apiClient.post<any>(
-        "/api/v1/ocr/process",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-      // Assume the backend returns an array of extracted medicine objects
-      return response.data as OcrExtractedMedicine[];
-    } catch (err: any) {
-      // Re‑throw for centralized error handling in components
-      throw err;
-    }
+  async scanComposition(formData: FormData): Promise<OCRCompositionResponse> {
+    const { data } = await ocrClient.post<OCRCompositionResponse>(
+      "/ocr/composition",
+      formData,
+    );
+    return data;
+  },
+
+  async scanPharmacyBill(formData: FormData): Promise<OCRPharmacyBillResponse> {
+    const { data } = await ocrClient.post<OCRPharmacyBillResponse>(
+      "/ocr/pharmacy-bill",
+      formData,
+    );
+    return data;
+  },
+
+  async scanDocument(formData: FormData): Promise<OCRDocumentResponse> {
+    const { data } = await ocrClient.post<OCRDocumentResponse>(
+      "/ocr/document",
+      formData,
+    );
+    return data;
   },
 };

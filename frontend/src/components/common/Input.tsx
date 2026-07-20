@@ -2,18 +2,28 @@ import { forwardRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label?: string;
   error?: string | null;
   hint?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, hint, id, ...props }, ref) => {
-    const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+    // Generate a stable ID for the input if label is provided (for label htmlFor)
+    // If label is not provided, we still need an id for the input (use prop or generate)
+    const fieldId =
+      id ??
+      (label
+        ? label.toLowerCase().replace(/\s+/g, "-")
+        : `input-${Math.random().toString(36).substr(2, 9)}`);
 
     return (
-      <label htmlFor={fieldId} className="flex flex-col gap-2 text-sm text-slate-700">
-        <span className="font-medium">{label}</span>
+      <>
+        {label && (
+          <label htmlFor={fieldId} className="flex flex-col gap-2 text-sm text-slate-700">
+            <span className="font-medium">{label}</span>
+          </label>
+        )}
         <input
           ref={ref}
           id={fieldId}
@@ -26,7 +36,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         />
         {error ? <span className="text-xs text-rose-600">{error}</span> : null}
         {!error && hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
-      </label>
+      </>
     );
   },
 );

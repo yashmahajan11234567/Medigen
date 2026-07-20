@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Pill } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { MedicineGrid } from "@/pages/inventory/components/MedicineGrid";
 import { MedicineDrawer } from "@/pages/inventory/components/MedicineDrawer";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -11,7 +10,6 @@ export function InventoryPage() {
   const {
     inventory: medicines,
     refresh,
-    createMedicine,
     updateMedicine,
     deleteMedicine,
   } = useInventory();
@@ -30,34 +28,11 @@ export function InventoryPage() {
     });
   };
 
-  const handleCreate = async (data: any) => {
-    // Convert camelCase to snake_case for API
-    const apiData = {
-      name: data.name,
-      generic_name: data.generic_name,
-      brand_name: data.brand_name,
-      type: data.type,
-      quantity: data.quantity,
-      quantity_unit: data.quantity_unit,
-      expiry_date: data.expiry_date,
-      purchase_date: data.purchase_date,
-      image_path: data.image_path,
-      notes: data.notes,
-    };
-    await createMedicine(apiData);
-    setSearchTerm("");
-    addToast({
-      title: "Medicine added.",
-      description: "The medicine has been added to your inventory.",
-      variant: "success",
-    });
-  };
-
   const handleUpdate = async (id: number, data: any) => {
     // Convert camelCase to snake_case for API
     const apiData = {
       name: data.name,
-      gender_name: data.gender_name,
+      generic_name: data.generic_name,
       brand_name: data.brand_name,
       type: data.type,
       quantity: data.quantity,
@@ -100,23 +75,30 @@ export function InventoryPage() {
       name: item.name ?? "",
       genericName: item.generic_name ?? "",
       brandName: item.brand_name ?? "",
-      type: item.type ?? "tablet",
-      quantity: item.quantity ?? 0,
-      unit: item.unit ?? "",
+      type: item.type, // Already a MedicineType string
+      quantity: item.quantity ?? null,
+      quantityUnit: item.quantity_unit ?? "",
       expiryDate: item.expiry_date ?? "",
+      purchaseDate: item.purchase_date ?? null,
+      imagePath: item.image_path ?? null,
       storageInstructions: "", // Not available from API
       notes: item.notes ?? "",
       // Map inventory status to medicine status
       status:
-        item.status === "available"
-          ? "healthy"
-          : item.status === "low_stock"
-          ? "low"
-          : item.status === "expiring_soon"
-          ? "expiring"
-          : item.status === "expired"
-          ? "expired"
-          : "low", // out_of_stock -> low
+        (() => {
+          switch (item.status) {
+            case "available":
+              return "healthy";
+            case "low_stock":
+              return "low";
+            case "expiring_soon":
+              return "expiring";
+            case "expired":
+              return "expired";
+            default:
+              return "low"; // out_of_stock -> low
+          }
+        })() as "healthy" | "low" | "expiring" | "expired",
     }));
 
   return (
