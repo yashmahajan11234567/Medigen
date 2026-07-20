@@ -4,13 +4,15 @@ import numpy as np
 import cv2
 
 from app.services.ocr_service import OCRService
-from app.utils.ocr_utils import OCRResult, OCRError
+from app.utils.ocr_utils import OCRResult, OCRError, ScanQualityDiagnostics
 
 
 class TestOCRService(unittest.TestCase):
     def setUp(self):
         self.mock_preprocessor = MagicMock()
         self.mock_engine = MagicMock()
+        # Default: assess_quality returns passing results
+        self.mock_preprocessor.assess_quality.return_value = ScanQualityDiagnostics(issues=[], is_pass=True)
         self.service = OCRService(engine=self.mock_engine, preprocessor=self.mock_preprocessor)
 
     def test_without_preprocessor_skips_preprocessing(self):
@@ -44,7 +46,8 @@ class TestOCRService(unittest.TestCase):
         result = self.service.extract_bytes(image_bytes, mime_type)
 
         # Assert
-        self.mock_preprocessor.preprocess.assert_called_once_with(image_bytes, mime_type)
+        self.mock_preprocessor.assess_quality.assert_called_once_with(image_bytes)
+        self.mock_preprocessor.preprocess.assert_called_once_with(image_bytes)
         self.mock_engine.extract_text.assert_called_once_with(processed_bytes)
         self.assertEqual(result, expected_result)
 
@@ -60,7 +63,8 @@ class TestOCRService(unittest.TestCase):
         result = self.service.extract_bytes(image_bytes, mime_type)
 
         # Assert
-        self.mock_preprocessor.preprocess.assert_called_once_with(image_bytes, mime_type)
+        self.mock_preprocessor.assess_quality.assert_called_once_with(image_bytes)
+        self.mock_preprocessor.preprocess.assert_called_once_with(image_bytes)
         self.mock_engine.extract_text.assert_called_once_with(image_bytes)
         self.assertEqual(result, expected_result)
 
@@ -84,6 +88,32 @@ class TestOCRService(unittest.TestCase):
         # Act & Assert
         self.assertRaises(ValueError, self.service.extract_bytes, image_bytes, mime_type)
 
+    def test_quality_reject_corrupted_raises_image_quality_error(self):
+        # Arrange
+        image_bytes = b"corrupted image"
+        mime_type = "image/png"
+        from app.utils.ocr_utils import ImageQualityError, ImageQualityIssue
+        self.mock_preprocessor.assess_quality.return_value = ScanQualityDiagnostics(
+            issues=[ImageQualityIssue.CORRUPTED],
+            is_pass=False,
+        )
+
+        # Act & Assert
+        self.assertRaises(ImageQualityError, self.service.extract_bytes, image_bytes, mime_type)
+
+    def test_quality_reject_empty_raises_image_quality_error(self):
+        # Arrange
+        image_bytes = b"empty image"
+        mime_type = "image/png"
+        from app.utils.ocr_utils import ImageQualityError, ImageQualityIssue
+        self.mock_preprocessor.assess_quality.return_value = ScanQualityDiagnostics(
+            issues=[ImageQualityIssue.EMPTY],
+            is_pass=False,
+        )
+
+        # Act & Assert
+        self.assertRaises(ImageQualityError, self.service.extract_bytes, image_bytes, mime_type)
+
     def test_preprocessing_failure_wraps_in_ocerror(self):
         # Arrange
         image_bytes = b"fake image data"
@@ -104,6 +134,26 @@ class TestOCRService(unittest.TestCase):
 
         # Act & Assert
         self.assertRaises(OCRError, self.service.extract_bytes, image_bytes, mime_type)
+
+    def test_low_confidence_rejected(self):
+        # Arrange
+        image_bytes = b"fake image data"
+        mime_type = "image/png"
+        self.mock_preprocessor.preprocess.return_value = image_bytes
+        # Confidence below default OCR_LOW_CONFIDENCE_REJECT_THRESHOLD (0.25)
+        low_conf_result = OCRResult(text="noise", average_confidence=0.1, word_details=[("noise", 0.1)])
+        self.mock_engine.extract_text.return_value = low_conf_result
+
+        # Act & Assert
+        self.assertRaises(OCRError, self.service.extract_bytes, image_bytes, mime_type)
+
+    def test_empty_upload_raises_value_error(self):
+        # Arrange
+        image_bytes = b""
+        mime_type = "image/png"
+
+        # Act & Assert
+        self.assertRaises(ValueError, self.service.extract_bytes, image_bytes, mime_type)
 
 
 if __name__ == '__main__':

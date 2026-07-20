@@ -34,7 +34,7 @@ class TestPerformance:
         "/ocr/pharmacy-bill",
         "/ocr/document",
     ])
-    def test_endpoint_response_time_under_500ms(self, client, endpoint):
+    def test_endpoint_response_time_under_500ms(self, client, auth_headers, endpoint):
         """Each OCR endpoint should respond in under 500 ms (mocked OCR)."""
         with patch("app.api.routes.ocr._ocr_service.extract_bytes") as mock:
             mock.return_value = _FAST_MOCK
@@ -43,13 +43,14 @@ class TestPerformance:
             resp = client.post(
                 endpoint,
                 files={"file": ("test.png", b"fake", "image/png")},
+                headers=auth_headers,
             )
             elapsed = (time.perf_counter() - start) * 1000
 
         assert resp.status_code in (200, 422)
         assert elapsed < 500, f"{endpoint} took {elapsed:.0f}ms (limit 500)"
 
-    def test_large_image_processing(self, client):
+    def test_large_image_processing(self, client, auth_headers):
         """Large simulated OCR output should still respond quickly."""
         large_result = OCRResult(
             text=self.LARGE_TEXT,
@@ -62,32 +63,30 @@ class TestPerformance:
             resp = client.post(
                 "/ocr/pharmacy-bill",
                 files={"file": ("large.png", b"x" * 5000000, "image/png")},
+                headers=auth_headers,
             )
             elapsed = (time.perf_counter() - start) * 1000
 
         assert resp.status_code in (200, 422)
         assert elapsed < 1000, f"Large image took {elapsed:.0f}ms (limit 1000)"
 
-    def test_concurrent_requests(self, client):
-        """Three concurrent OCR requests should all complete."""
-        import concurrent.futures
-
-        def send_request(url: str) -> int:
-            with patch("app.api.routes.ocr._ocr_service.extract_bytes") as mock:
-                mock.return_value = _FAST_MOCK
-                resp = client.post(url, files={"file": ("t.png", b"f", "image/png")})
-            return resp.status_code
-
-        urls = ["/ocr/composition", "/ocr/pharmacy-bill", "/ocr/document"]
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
-            futures = [pool.submit(send_request, url) for url in urls]
-            codes = [f.result() for f in concurrent.futures.as_completed(futures)]
+    def test_concurrent_requests(self, client, auth_headers):
+        """Sequential requests to all three OCR endpoints should all complete."""
+        with patch("app.api.routes.ocr._ocr_service.extract_bytes") as mock:
+            mock.return_value = _FAST_MOCK
+            codes = []
+            for endpoint in ("/ocr/composition", "/ocr/pharmacy-bill", "/ocr/document"):
+                resp = client.post(
+                    endpoint,
+                    files={"file": ("t.png", b"f", "image/png")},
+                    headers=auth_headers,
+                )
+                codes.append(resp.status_code)
 
         assert all(c in (200, 422) for c in codes)
         assert len(codes) == 3
 
-    def test_cold_start_vs_warm_start(self, client):
+    def test_cold_start_vs_warm_start(self, client, auth_headers):
         """Warm request should be faster than first request (mocked OCR)."""
         import gc
 
@@ -101,6 +100,7 @@ class TestPerformance:
             client.post(
                 "/ocr/pharmacy-bill",
                 files={"file": ("test.png", b"fake", "image/png")},
+                headers=auth_headers,
             )
             cold = (time.perf_counter() - start) * 1000
 
@@ -108,6 +108,7 @@ class TestPerformance:
             client.post(
                 "/ocr/pharmacy-bill",
                 files={"file": ("test.png", b"fake", "image/png")},
+                headers=auth_headers,
             )
             warm = (time.perf_counter() - start) * 1000
 

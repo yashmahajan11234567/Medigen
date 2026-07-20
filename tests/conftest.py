@@ -12,10 +12,12 @@ TEST_DB_PATH = Path("tests/.test_medigen.db")
 os.environ["MEDIGEN_DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["MEDIGEN_AUTO_CREATE_TABLES"] = "false"
 
+from app.auth.jwt import create_access_token
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import load_all_models
+from tests.support import create_user
 
 
 load_all_models()
@@ -68,3 +70,11 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def auth_headers(db_session: Session) -> dict[str, str]:
+    """Create a real user and return valid JWT auth headers for OCR tests."""
+    user = create_user(db_session)
+    token = create_access_token(subject=str(user.id))
+    return {"Authorization": f"Bearer {token}"}
