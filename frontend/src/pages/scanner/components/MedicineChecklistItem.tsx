@@ -1,6 +1,5 @@
-import { Checkbox, HStack, Label, Select, Input, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Button, Text, Stack } from "@chakra-ui/react";
-import { MedicineType } from "@/types/api";
 import { useEffect, useState } from "react";
+import { MedicineType } from "@/types/api";
 
 export interface MedicineChecklistItem {
   id: string;
@@ -39,8 +38,9 @@ export interface MedicineChecklistItemProps {
   };
   /** Toggle selection */
   onToggle: (id: string) => void;
-  /** Yes/No options -->
+  /** Select all */
   onSelectAll: () => void;
+  /** Clear all */
   onClearAll: () => void;
   /** Edit field action */
   onEdit: (id: string, field: string, value: string) => void;
@@ -245,57 +245,53 @@ export default function MedicineChecklistItem({
   useEffect(() => {
     if (editField) {
       setEditFieldLocal(editField);
-      setEditValueLocal(editValue);
+      setEditValueLocal(editValue ?? "");
       setIsEditing(true);
     }
-  }, [editField]);
+  }, [editField, editValue]);
 
   const medicineBadgeLabel = isKnown ? "Known" : "Unknown";
   const badgeColor = isKnown ? "text-green-700 bg-green-50" : "text-amber-700 bg-amber-50";
 
-  // Determine if all validation fields are currently error-free
   const quantityIsValid = quantityError === "";
   const unitIsValid = unitError === "";
   const expiryIsValid = expiryError === "";
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 flex items-start gap-4">
-      {/* Checkbox - all selected by default */}
-      <HStack className="flex items-center gap-2">
-        <Label as="input" value="✓">
-          <Checkbox
-            _is_indeterminate={false}
-            isChecked={/* Implement selection logic - all selected by default */}
+    <div className="rounded-xl border border-slate-100 bg-white p-4 space-y-4">
+      {/* Top row: checkbox + name + badge */}
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={true}
             onChange={() => onToggle(id)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             autoComplete="off"
           />
-        </Label>
-        <Label className="text-sm text-slate-600 whitespace-nowrap">
-          {medicine.name}
-        </Label>
-      </HStack>
+          <span className="text-sm text-slate-600 whitespace-nowrap">{medicine.name}</span>
+        </label>
 
-      {/* Badge */}
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badgeColor}`}>
-        {medicineBadgeLabel}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badgeColor}`}>
+          {medicineBadgeLabel}
+        </span>
+
         {isDuplicate && (
           <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-rose-50 text-rose-700">
             Duplicate
           </span>
         )}
-      </span>
+      </div>
 
-      {/* Edit controls */}
-      {isKnown ? null : (
-        <>
-          <Select
-            as="select"
-            placeholder="Select type"
+      {/* Edit controls for unknown medicines */}
+      {!isKnown && (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
             onChange={(e) => {
               onEdit(id, "type", e.target.value as MedicineType);
               setIsEditing(false);
             }}
-            className="ml-2"
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="tablet">Tablet</option>
             <option value="capsule">Capsule</option>
@@ -306,169 +302,168 @@ export default function MedicineChecklistItem({
             <option value="drops">Drops</option>
             <option value="inhaler">Inhaler</option>
             <option value="other">Other</option>
-          </Select>
+          </select>
 
-          <Input
+          <input
             type="text"
             placeholder="Edit name"
             value={editValueLocal}
             onChange={handleEditChange}
             onBlur={handleBlurEdit}
-            className="ml-2"
-          />{" "}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+          />
+
           {isEditing && (
-            <Input
+            <input
               type="text"
               placeholder="Edit name"
               value={editValueLocal}
               onChange={handleEditChange}
               onBlur={handleBlurEdit}
-              className="ml-2"
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
             />
-          )}{" "}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-2"
+          )}
+
+          <button
+            className="h-9 rounded-lg bg-slate-100 px-3 text-sm text-slate-600 hover:bg-slate-200"
             onClick={() => setShowLookup(true)}
           >
             Look Up
-          </Button>
+          </button>
+
           {showLookup && (
-            <div className="mt-1">
-              <Input
-                type="text"
-                placeholder="Search..."
-                value={editValueLocal}
-                onChange={(e) => setEditValueLocal(e.target.value)}
-                className="w-full"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    onLookup(id);
-                    setShowLookup(false);
-                  }
-                }}
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Search..."
+              value={editValueLocal}
+              onChange={(e) => setEditValueLocal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onLookup(id);
+                  setShowLookup(false);
+                }
+              }}
+              className="h-9 w-48 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            />
           )}
-        </>
+        </div>
       )}
 
       {/* Quantity inputs - always show when not submitting */}
-      {isSubmitting ? null : (
-        <>
-          <Input
+      {!isSubmitting && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
             type="text"
             placeholder="Quantity"
             value={quantity}
             onChange={handleQuantityChange}
-            className="ml-2 w-20"
+            className="h-9 w-20 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
             disabled={isSubmitting}
           />
           {quantityError && (
-            <div className="text-sm text-red-600 mt-1">
-              {quantityError}
-            </div>
+            <span className="text-sm text-red-600">{quantityError}</span>
           )}
-          <Input
+          <input
             type="text"
             placeholder="Unit"
             value={unit}
             onChange={handleUnitChange}
-            className="ml-2 w-15"
+            className="h-9 w-20 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
             disabled={isSubmitting}
           />
           {unitError && (
-            <div className="text-sm text-red-600 mt-1">
-              {unitError}
-            </div>
+            <span className="text-sm text-red-600">{unitError}</span>
           )}
-          <Input
+          <input
             type="date"
             placeholder="Expiry"
             value={expiryDate}
             onChange={handleExpiryChange}
-            className="ml-2 w-25"
+            className="h-9 w-36 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
             disabled={isSubmitting}
           />
           {expiryError && (
-            <div className="text-sm text-red-600 mt-1">
-              {expiryError}
-            </div>
+            <span className="text-sm text-red-600">{expiryError}</span>
           )}
-        </>
+        </div>
       )}
 
       {/* Duplicate actions */}
-      {isDuplicate ? (
-        <div className="flex flex-wrap gap-2 mt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onResolveDuplicate({ ...medicine }, "update")}
+      {isDuplicate && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="h-9 rounded-lg bg-slate-100 px-3 text-sm text-slate-600 hover:bg-slate-200"
+            onClick={() => onResolveDuplicate(
+              { id, medicineId: medicine.medicineId, medicineName: medicine.name, genericName: medicine.genericName, brandName: medicine.brandName, type: medicine.type, quantity: parseInt(quantity, 10) || 0, quantityUnit: unit, expiryDate, isSelected: true },
+              "update"
+            )}
           >
             Update Qty
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onResolveDuplicate({ ...medicine }, "skip")}
+          </button>
+          <button
+            className="h-9 rounded-lg bg-slate-100 px-3 text-sm text-slate-600 hover:bg-slate-200"
+            onClick={() => onResolveDuplicate(
+              { id, medicineId: medicine.medicineId, medicineName: medicine.name, genericName: medicine.genericName, brandName: medicine.brandName, type: medicine.type, quantity: parseInt(quantity, 10) || 0, quantityUnit: unit, expiryDate, isSelected: true },
+              "skip"
+            )}
           >
             Skip
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onResolveDuplicate({ ...medicine }, "separate")}
+          </button>
+          <button
+            className="h-9 rounded-lg bg-slate-100 px-3 text-sm text-slate-600 hover:bg-slate-200"
+            onClick={() => onResolveDuplicate(
+              { id, medicineId: medicine.medicineId, medicineName: medicine.name, genericName: medicine.genericName, brandName: medicine.brandName, type: medicine.type, quantity: parseInt(quantity, 10) || 0, quantityUnit: unit, expiryDate, isSelected: true },
+              "separate"
+            )}
           >
             Separate Entry
-          </Button>
+          </button>
         </div>
-      ) : null}
+      )}
 
-      {/* Submit button - only when not submitting */}
-      {isSubmitting ? null : (
-        <Button
+      {/* Submit button */}
+      {!isSubmitting && (
+        <button
           onClick={maybeSubmit}
-          variant="solid"
-          colorScheme="brand"
-          size="lg"
-          isLoading={isSubmitting}
+          className="h-10 rounded-2xl bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
         >
           Add to Inventory
-        </Button>
+        </button>
       )}
 
       {/* Unknown medicine confirmation dialog */}
       {showConfirmUnknown && (
-        <Modal isOpen={showConfirmUnknown} onClose={() => setShowConfirmUnknown(false)}>
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Unknown Medicine</ModalHeader>
-            <ModalBody>
-              <Text as="p" color="gray">
-                "This medicine was not found in the MediGen database.\nCreating a new medicine record may affect future searches."
-              </Text>
-              <Stack direction="row" spacing={4} mt={4}>
-                <Button onClick={handleGoBack} variant="ghost">
-                  Go Back
-                </Button>
-                <Button onClick={handleCreateAnyway} variant="solid" colorScheme="red">
-                  Create Anyway
-                </Button>
-              </Stack>
-            </ModalBody>
-            <ModalCloseButton />
-          </ModalContent>
-        </Modal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleGoBack}>
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 text-lg font-semibold text-slate-900">Unknown Medicine</div>
+            <p className="text-sm text-slate-600">
+              This medicine was not found in the MediGen database.
+              Creating a new medicine record may affect future searches.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={handleGoBack}
+                className="h-10 rounded-2xl bg-slate-100 px-5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleCreateAnyway}
+                className="h-10 rounded-2xl bg-rose-600 px-5 text-sm font-semibold text-white hover:bg-rose-700"
+              >
+                Create Anyway
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Error display */}
-      {error && <div className="text-sm text-red-600 mt-1">{error}</div>}
+      {error && <div className="text-sm text-red-600">{error}</div>}
 
       {/* Loading spinner */}
       {isSubmitting && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
           Processing...
         </div>
       )}

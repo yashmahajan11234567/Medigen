@@ -1,6 +1,5 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/cn";
-import { Select as ChakraSelect } from "@chakra-ui/react";
 
 interface SelectProps {
   className?: string;
@@ -49,20 +48,17 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
             "relative",
             className,
           )}
+          {...props}
         >
-          <ChakraSelect
+          <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            isDisabled={isDisabled}
-            isInvalid={!!error}
+            disabled={isDisabled}
             className={cn(
-              "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition focus:border-brand-300 focus:ring-4 focus:ring-brand-100",
+              "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition focus:border-brand-300 focus:ring-4 focus:ring-brand-100 appearance-none",
               error ? "border-rose-300 focus:border-rose-300 focus:ring-rose-100" : "",
             )}
-            {...props}
           >
-            {/* Placeholder option */}
             {placeholder && (
               <option value="" disabled hidden>
                 {placeholder}
@@ -73,7 +69,7 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
                 {option.label}
               </option>
             ))}
-          </ChakraSelect>
+          </select>
         </div>
         {error ? <span className="text-xs text-rose-600">{error}</span> : null}
         {!error && hint ? <span className="text-xs text-slate-500">{hint}</span> : null}

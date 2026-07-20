@@ -8,7 +8,7 @@ import { DatePicker } from "@/components/common/DatePicker";
 import { Button } from "@/components/common/Button";
 import { PreviewPlaceholder } from "@/pages/medical-records/components/PreviewPlaceholder";
 import { QualityBadge } from "./QualityBadge";
-import type { MedicalRecordCreateRequest, MedicalRecordDocumentCreate } from "@/types/api";
+import type { MedicalRecordCreateRequest, MedicalRecordDocumentCreate, ScanQualityDiagnostics } from "@/types/api";
 
 interface MedicalRecordPreviewProps {
   draft: MedicalRecordCreateRequest;
@@ -34,6 +34,17 @@ export function MedicalRecordPreview({
   const [visitDate, setVisitDate] = useState(draft.visit_date ?? "");
   const [diagnosis, setDiagnosis] = useState(draft.diagnosis ?? "");
   const [notes, setNotes] = useState(draft.notes ?? "");
+
+  // Build diagnostics object for QualityBadge from document fields
+  const docDiagnostics: ScanQualityDiagnostics | null = draft.documents?.[0]
+    ? {
+        issues: draft.documents[0].issues ?? [],
+        blur_score: draft.documents[0].blur_score ?? null,
+        brightness: draft.documents[0].brightness ?? null,
+        contrast: draft.documents[0].contrast ?? null,
+        is_pass: draft.documents[0].is_pass ?? false,
+      }
+    : null;
 
   // Handle changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -85,7 +96,7 @@ export function MedicalRecordPreview({
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Record Details</h2>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           onClick={onCancel}
           disabled={isSaving}
@@ -185,12 +196,7 @@ export function MedicalRecordPreview({
             <PreviewPlaceholder type="image" className="h-40 w-full object-cover rounded-2xl" />
             <div className="space-y-2">
               <QualityBadge
-                confidence={draft.documents?.[0]?.ocr_confidence ?? null}
-                blurScore={draft.documents?.[0]?.blur_score ?? null}
-                brightness={draft.documents?.[0]?.brightness ?? null}
-                contrast={draft.documents?.[0]?.contrast ?? null}
-                isPass={draft.documents?.[0]?.is_pass ?? null}
-                issues={draft.documents?.[0]?.issues ?? []}
+                diagnostics={docDiagnostics}
               />
             </div>
           </div>
@@ -198,7 +204,7 @@ export function MedicalRecordPreview({
 
         <div className="flex items-center justify-end">
           <Button
-            variant="solid"
+            variant="primary"
             size="lg"
             onClick={onSave}
             disabled={isSaving || !title.trim() || !folderName.trim()}

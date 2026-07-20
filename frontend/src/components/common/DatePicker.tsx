@@ -5,7 +5,7 @@ interface DatePickerProps {
   name?: string;
   className?: string;
   id?: string;
-  label: string;
+  label?: string;
   error?: string | null;
   hint?: string;
   value: string | null;
@@ -31,7 +31,7 @@ export const DatePicker = forwardRef<HTMLDivElement, DatePickerProps>(
     max,
     ...props
   }, ref) => {
-    const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+    const fieldId = id ?? ((label ?? "").toLowerCase().replace(/\s+/g, "-") || `date-${Math.random().toString(36).substr(2, 9)}`);
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.value || null);

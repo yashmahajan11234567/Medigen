@@ -23,6 +23,12 @@ ocrClient.interceptors.request.use((config) => {
   return config;
 });
 
+function fileToFormData(file: File): FormData {
+  const formData = new FormData();
+  formData.append("file", file);
+  return formData;
+}
+
 export const ocrService = {
   async scanComposition(formData: FormData): Promise<OCRCompositionResponse> {
     const { data } = await ocrClient.post<OCRCompositionResponse>(
@@ -30,6 +36,10 @@ export const ocrService = {
       formData,
     );
     return data;
+  },
+
+  async composition(file: File): Promise<OCRCompositionResponse> {
+    return ocrService.scanComposition(fileToFormData(file));
   },
 
   async scanPharmacyBill(formData: FormData): Promise<OCRPharmacyBillResponse> {
@@ -40,11 +50,19 @@ export const ocrService = {
     return data;
   },
 
+  async pharmacyBill(file: File): Promise<OCRPharmacyBillResponse> {
+    return ocrService.scanPharmacyBill(fileToFormData(file));
+  },
+
   async scanDocument(formData: FormData): Promise<OCRDocumentResponse> {
     const { data } = await ocrClient.post<OCRDocumentResponse>(
       "/ocr/document",
       formData,
     );
     return data;
+  },
+
+  async document(file: File): Promise<OCRDocumentResponse> {
+    return ocrService.scanDocument(fileToFormData(file));
   },
 };

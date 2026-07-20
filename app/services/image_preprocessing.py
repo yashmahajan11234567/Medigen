@@ -1,10 +1,14 @@
 import cv2
 import numpy as np
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from app.core.config import get_settings
-from app.utils.ocr_utils import OCRError  # We'll reuse OCRError for consistency, or define our own? Let's define a new one.
+from app.utils.ocr_utils import (
+    ImageQualityIssue,
+    OCRError,
+    ScanQualityDiagnostics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +20,9 @@ class ImageProcessingError(Exception):
 
 class ImagePreprocessor:
     """
-    Handles image preprocessing steps for OCR.
-    Steps are configurable via settings (or constructor overrides).
-    Steps (in order):
+    Handles image preprocessing and quality assessment for OCR.
+
+    Preprocessing Steps (in order):
       1. Decode image from bytes
       2. Resize (maintaining aspect ratio, max dimension from settings)
       3. Deskew (optional)
@@ -26,6 +30,13 @@ class ImagePreprocessor:
       5. Apply CLAHE (optional)
       6. Apply adaptive threshold (optional)
       7. Denoise (optional)
+
+    Quality Assessment (run before preprocessing):
+      - Blur detection via Laplacian variance
+      - Brightness / overexposure check
+      - Contrast check
+      - Corruption / emptiness check
+
     Returns processed image as PNG-encoded bytes.
     """
 
@@ -49,6 +60,74 @@ class ImagePreprocessor:
 
         # Note: We could add more settings for CLAHE and denoise parameters, but for simplicity we use defaults.
         # In a production system, we might expose these as well.
+
+    def assess_quality(self, image_bytes: bytes) -> ScanQualityDiagnostics:
+        """Assess the quality of an image before OCR processing.
+
+        Checks for blur, poor brightness (too dark / overexposed),
+        low contrast, and corruption.  This method is intentionally
+        independent of the preprocessing pipeline so that quality
+        checks can run on the original (unprocessed) image.
+
+        Args:
+            image_bytes: Raw image bytes.
+
+        Returns:
+            ScanQualityDiagnostics with detected issues and metrics.
+
+        Raises:
+            ImageProcessingError: If the image cannot be decoded at all.
+        """
+        settings = get_settings()
+        if not settings.OCR_ENABLE_QUALITY_CHECK:
+            return ScanQualityDiagnostics(issues=[], is_pass=True)
+
+        try:
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as exc:
+            raise ImageProcessingError(f"Failed to decode image: {exc}") from exc
+
+        if img is None:
+            return ScanQualityDiagnostics(
+                issues=[ImageQualityIssue.CORRUPTED],
+                is_pass=False,
+            )
+
+        height, width = img.shape[:2]
+        if height < 10 or width < 10:
+            return ScanQualityDiagnostics(
+                issues=[ImageQualityIssue.EMPTY],
+                is_pass=False,
+            )
+
+        issues: list[ImageQualityIssue] = []
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Blur detection via Laplacian variance
+        blur_score = self._detect_blur(gray)
+        if blur_score < settings.OCR_BLUR_THRESHOLD:
+            issues.append(ImageQualityIssue.BLURRY)
+
+        # Brightness and exposure
+        brightness = self._detect_brightness(gray)
+        if brightness < settings.OCR_MIN_BRIGHTNESS:
+            issues.append(ImageQualityIssue.TOO_DARK)
+        elif brightness > settings.OCR_MAX_BRIGHTNESS:
+            issues.append(ImageQualityIssue.OVEREXPOSED)
+
+        # Contrast
+        contrast = self._detect_contrast(gray)
+        if contrast < settings.OCR_MIN_CONTRAST:
+            issues.append(ImageQualityIssue.LOW_CONTRAST)
+
+        return ScanQualityDiagnostics(
+            issues=issues,
+            blur_score=blur_score,
+            brightness=brightness,
+            contrast=contrast,
+            is_pass=len(issues) == 0,
+        )
 
     def preprocess(self, image_bytes: bytes) -> bytes:
         """
@@ -217,3 +296,43 @@ class ImagePreprocessor:
             return cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
         else:
             return cv2.fastNlMeansDenoising(img, None, 10, 7, 21)
+
+    # ------------------------------------------------------------------
+    # Quality Assessment helpers
+    # ------------------------------------------------------------------
+
+    def _detect_blur(self, gray: np.ndarray) -> float:
+        """Measure image blur using Laplacian variance.
+
+        Returns the variance of the Laplacian — a standard blur metric.
+        Lower values indicate more blur.  Typical thresholds:
+            < 100 : blurry
+            100–200 : moderately sharp
+            > 200 : sharp
+
+        This is a well-established no-reference blur detection method
+        (Pech-Pacheco et al., 2000, "Diatom autofocusing in brightfield
+        microscopy: a comparative study").
+        """
+        return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    def _detect_brightness(self, gray: np.ndarray) -> float:
+        """Measure mean image brightness.
+
+        Returns mean pixel value (0-255).
+            < 40   : very dark
+            40–60  : dark (acceptable)
+            60–200 : normal
+            > 240  : overexposed / blown out
+        """
+        return float(np.mean(gray))
+
+    def _detect_contrast(self, gray: np.ndarray) -> float:
+        """Measure image contrast as standard deviation of pixel values.
+
+        Lower values indicate flatter / lower-contrast images.
+            < 20 : low contrast
+            20–40 : moderate contrast
+            > 40  : high contrast
+        """
+        return float(np.std(gray))

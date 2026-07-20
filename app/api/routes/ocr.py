@@ -2,18 +2,25 @@ import logging
 import time
 from uuid import uuid4
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
+from app.auth.dependencies import get_current_active_user
 from app.db.session import DbSession
-from app.schemas.ocr import OCRCompositionResponse, OCRDocumentResponse, OCRPharmacyBillResponse
+from app.schemas.ocr import (
+    OCRCompositionResponse,
+    OCRDocumentResponse,
+    OCRPharmacyBillResponse,
+    ScanQualityDiagnosticsSchema,
+)
 from app.services.bill_parser import BillParser
 from app.services.composition_parser import CompositionParser
 from app.services.document_parser import DocumentParser
 from app.services.generic_finder_service import GenericFinderService
+from app.services.image_preprocessing import ImagePreprocessor
 from app.services.ocr_service import OCRService
 from app.services.paddleocr_engine import PaddleOCREngine
 from app.services.text_cleaner import TextCleaner
-from app.utils.ocr_utils import OCRError
+from app.utils.ocr_utils import ImageQualityError, OCRError
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +28,8 @@ router = APIRouter(prefix="/ocr", tags=["ocr"])
 
 # Shared service instances (stateless / can be shared across requests)
 _ocr_engine = PaddleOCREngine()
-_ocr_service = OCRService(engine=_ocr_engine)
+_image_preprocessor = ImagePreprocessor()
+_ocr_service = OCRService(engine=_ocr_engine, preprocessor=_image_preprocessor)
 _text_cleaner = TextCleaner()
 _composition_parser = CompositionParser()
 _bill_parser = BillParser()
@@ -70,16 +78,68 @@ def _determine_mime_type(file: UploadFile) -> str:
     return "application/octet-stream"
 
 
-def _handle_ocr_error(exc: ValueError) -> None:
-    """Map OCRService ValueError to the appropriate HTTP error."""
+def _build_quality_diagnostics(ocr_result) -> ScanQualityDiagnosticsSchema | None:
+    """Build a ScanQualityDiagnosticsSchema from OCRResult quality data, if present."""
+    if ocr_result.quality is None:
+        return None
+    return ScanQualityDiagnosticsSchema(
+        issues=[i.value for i in ocr_result.quality.issues],
+        blur_score=ocr_result.quality.blur_score,
+        brightness=ocr_result.quality.brightness,
+        contrast=ocr_result.quality.contrast,
+        is_pass=ocr_result.quality.is_pass,
+    )
+
+
+def _handle_ocr_error(exc: Exception) -> None:
+    """Map OCRService / parser exceptions to the appropriate HTTP error."""
+    if isinstance(exc, ImageQualityError):
+        if exc.code == "image_corrupted":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The uploaded file appears to be corrupted or is not a valid image. "
+                       "Please upload a valid PNG or JPEG image.",
+            )
+        if exc.code == "image_empty":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The uploaded image appears to be empty or too small to process.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
     msg = str(exc)
-    if "mime type" in msg.lower() or "mime" in msg.lower():
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=msg)
+    if "mime" in msg.lower() or "unsupported" in msg.lower():
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type. Accepted types: PNG, JPEG.",
+        )
     if "size" in msg.lower() and "large" in msg.lower():
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=msg)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=str(exc),
+        )
     if "empty" in msg.lower():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty.",
+        )
+    if "confidence too low" in msg.lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+    if isinstance(exc, OCRError):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OCR processing failed. Please try again with a clearer image.",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=str(exc),
+    )
 
 
 @router.post("/composition", response_model=OCRCompositionResponse)
@@ -87,7 +147,13 @@ async def ocr_composition(
     request: Request,
     db: DbSession,
     file: UploadFile = File(...),
+    current_user=Depends(get_current_active_user),
 ) -> OCRCompositionResponse:
+    """Extract a medicine composition from an image and search for generic substitutes.
+
+    Pipeline: Upload → Validate → Quality Check → Preprocess → OCR → Clean →
+              Composition Parser → Generic Finder → Response
+    """
     start = time.perf_counter()
     endpoint = "composition"
 
@@ -96,22 +162,20 @@ async def ocr_composition(
 
     try:
         ocr_result = _ocr_service.extract_bytes(image_bytes, mime_type)
-    except ValueError as exc:
+    except (ValueError, ImageQualityError) as exc:
         _log_processing(request, endpoint, 0, None, False)
         _handle_ocr_error(exc)
     except OCRError as exc:
         _log_processing(request, endpoint, 0, None, False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OCR processing failed: {exc}",
-        )
+        _handle_ocr_error(exc)
 
     cleaned = _text_cleaner.clean(ocr_result.text)
     if not cleaned:
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="OCR returned empty text after cleaning",
+            detail="No text could be extracted from the image. "
+                   "Please ensure the image shows a medicine label clearly.",
         )
 
     try:
@@ -120,7 +184,8 @@ async def ocr_composition(
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Composition parsing failed: {exc}",
+            detail=f"Could not parse medicine composition from the extracted text. "
+                   f"Please verify the image shows a single medicine clearly.",
         )
 
     try:
@@ -135,6 +200,7 @@ async def ocr_composition(
 
     return OCRCompositionResponse(
         ocr_confidence=ocr_result.average_confidence,
+        quality_diagnostics=_build_quality_diagnostics(ocr_result),
         processing_time_ms=duration_ms,
         result=search_result,
     )
@@ -144,13 +210,16 @@ async def ocr_composition(
 async def ocr_pharmacy_bill(
     request: Request,
     file: UploadFile = File(...),
+    current_user=Depends(get_current_active_user),
 ) -> OCRPharmacyBillResponse:
     """Parse a pharmacy bill image and return structured medicine entries.
 
-    Pipeline: Upload → Validate → OCR → Clean → BillParser → Response
+    Pipeline: Upload → Validate → Quality Check → Preprocess → OCR → Clean →
+              BillParser → Response
 
-    NOTE: This endpoint is preview-only.  It does NOT write to the database
-    or interact with Scheduler / Inventory modules.
+    NOTE: This endpoint does NOT write to the database or interact with
+    Scheduler / Inventory modules.  Use the /api/v1/schedule/from-bill and
+    /api/v1/inventory endpoints for that.
     """
     start = time.perf_counter()
     endpoint = "pharmacy-bill"
@@ -160,22 +229,20 @@ async def ocr_pharmacy_bill(
 
     try:
         ocr_result = _ocr_service.extract_bytes(image_bytes, mime_type)
-    except ValueError as exc:
+    except (ValueError, ImageQualityError) as exc:
         _log_processing(request, endpoint, 0, None, False)
         _handle_ocr_error(exc)
     except OCRError as exc:
         _log_processing(request, endpoint, 0, None, False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OCR processing failed: {exc}",
-        )
+        _handle_ocr_error(exc)
 
     cleaned = _text_cleaner.clean(ocr_result.text)
     if not cleaned:
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="OCR returned empty text after cleaning",
+            detail="No text could be extracted from the image. "
+                   "Please ensure the image shows a pharmacy bill clearly.",
         )
 
     try:
@@ -184,7 +251,8 @@ async def ocr_pharmacy_bill(
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Bill parsing failed: {exc}",
+            detail=f"Could not parse medicine entries from the bill text. "
+                   f"Please ensure the bill image is clear and readable.",
         )
 
     duration_ms = int((time.perf_counter() - start) * 1000)
@@ -192,6 +260,7 @@ async def ocr_pharmacy_bill(
 
     return OCRPharmacyBillResponse(
         ocr_confidence=ocr_result.average_confidence,
+        quality_diagnostics=_build_quality_diagnostics(ocr_result),
         processing_time_ms=duration_ms,
         result=bill_result,
     )
@@ -201,10 +270,12 @@ async def ocr_pharmacy_bill(
 async def ocr_document(
     request: Request,
     file: UploadFile = File(...),
+    current_user=Depends(get_current_active_user),
 ) -> OCRDocumentResponse:
     """Parse a medical document image and return structured metadata.
 
-    Pipeline: Upload → Validate → OCR → Clean → DocumentParser → Response
+    Pipeline: Upload → Validate → Quality Check → Preprocess → OCR → Clean →
+              DocumentParser → Response
 
     Recognised document types: Prescription, Pharmacy Bill, Blood Test Report,
     Laboratory Report, Diagnostic Report, Discharge Summary, Medical Certificate, Other.
@@ -216,27 +287,65 @@ async def ocr_document(
     start = time.perf_counter()
     endpoint = "document"
 
+    # Read file content
     image_bytes = await file.read()
     mime_type = _determine_mime_type(file)
+    original_filename = file.filename or "upload"
+
+    # Prepare upload directory
+    from pathlib import Path
+    import os
+    import mimetypes
+    from uuid import uuid4
+
+    UPLOAD_DIR = Path("uploads/medical_records")
+    try:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not create upload directory: {e}",
+        )
+
+    # Determine file extension
+    _, ext = os.path.splitext(original_filename)
+    if not ext:
+        # Guess extension from mimetype
+        ext = mimetypes.guess_extension(mime_type) or ".bin"
+    # Generate unique filename to avoid collisions
+    unique_filename = f"{uuid4().hex}{ext}"
+    file_path = UPLOAD_DIR / unique_filename
+
+    # Save file to disk
+    try:
+        with open(file_path, "wb") as f:
+            f.write(image_bytes)
+    except IOError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not save file: {e}",
+        )
+
+    # Prepare file metadata for response
+    storage_path = str(f"uploads/medical_records/{unique_filename}")
+    file_size = len(image_bytes)
 
     try:
         ocr_result = _ocr_service.extract_bytes(image_bytes, mime_type)
-    except ValueError as exc:
+    except (ValueError, ImageQualityError) as exc:
         _log_processing(request, endpoint, 0, None, False)
         _handle_ocr_error(exc)
     except OCRError as exc:
         _log_processing(request, endpoint, 0, None, False)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OCR processing failed: {exc}",
-        )
+        _handle_ocr_error(exc)
 
     cleaned = _text_cleaner.clean(ocr_result.text)
     if not cleaned:
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="OCR returned empty text after cleaning",
+            detail="No text could be extracted from the image. "
+                   "Please ensure the document image is clear and readable.",
         )
 
     try:
@@ -245,7 +354,8 @@ async def ocr_document(
         _log_processing(request, endpoint, 0, ocr_result.average_confidence, False)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Document parsing failed: {exc}",
+            detail=f"Could not parse document information from the extracted text. "
+                   f"Please ensure the document image is clear and readable.",
         )
 
     duration_ms = int((time.perf_counter() - start) * 1000)
@@ -253,6 +363,11 @@ async def ocr_document(
 
     return OCRDocumentResponse(
         ocr_confidence=ocr_result.average_confidence,
+        quality_diagnostics=_build_quality_diagnostics(ocr_result),
         processing_time_ms=duration_ms,
         result=doc_result,
+        storage_path=storage_path,
+        file_name=original_filename,
+        file_type=mime_type,
+        file_size=file_size,
     )

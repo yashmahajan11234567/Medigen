@@ -1,5 +1,3 @@
-import { HStack, Button, Flex } from "@chakra-ui/react";
-import { Divider } from "@chakra-ui/layout";
 import MedicineChecklistItemComponent from "./MedicineChecklistItem";
 import { MedicineChecklistItemProps } from "./MedicineChecklistItem";
 import { MedicineChecklistItem } from "./MedicineChecklistItem";
@@ -7,25 +5,16 @@ import { useMemo } from "react";
 import type { MedicineForInventory } from "@/types/api";
 
 interface InventoryPanelProps {
-  /** OCR items to process for inventory */
   items: MedicineForInventory[];
-  /** Toggle selection handlers */
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
-  /** Edit field handler */
   onEdit: (id: string, field: string, value: string) => void;
-  /** Lookup unknown medicine */
   onLookup: (id: string) => void;
-  /** Submit workflow */
   onSubmit: (item: MedicineForInventory) => Promise<void>;
-  /** Current submission status */
-  isSubmitting: boolean;
-  /** Resolve duplicate action */
-  onResolveDuplicate: (item: MedicineChecklistItem, action: "update" | "skip" | "separate") => void;
-  /** Submit all selected */
   onSubmitAll: () => void;
-  /** Global error */
+  isSubmitting: boolean;
+  onResolveDuplicate: (item: MedicineChecklistItem, action: "update" | "skip" | "separate") => void;
   error?: string;
 }
 
@@ -46,43 +35,35 @@ export default function InventoryPanel({
 
   const selectedCount = useMemo(() => inventoryItems.filter(i => i.isSelected).length, [inventoryItems]);
 
-  /* Render the panel */
   return (
-    <div className="pt-4 pb-6 space-y-6 border-t-2 border-brand-200">
+    <div className="space-y-6 border-t-2 border-brand-200 pb-6 pt-4">
       {/* Header with controls */}
-      <HStack className="justify-between items-start">
-        <HStack>
-          <Button
+      <div className="flex items-start justify-between">
+        <div className="flex gap-2">
+          <button
             onClick={onSelectAll}
-            variant="solid"
-            colorScheme="brand"
-            size="sm"
+            className="h-9 rounded-2xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
             disabled={isSubmitting}
           >
             Select All ({items.length})
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={onClearAll}
-            variant="outline"
-            colorScheme="red"
-            size="sm"
+            className="h-9 rounded-2xl bg-white px-4 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60"
             disabled={isSubmitting}
           >
             Clear All
-          </Button>
-        </HStack>
-        <HStack className="items-center gap-2">
-          <span className="text-sm font-medium text-slate-900">
-            {selectedCount} of {items.length} selected
-          </span>
-        </HStack>
-      </HStack>
+          </button>
+        </div>
+        <span className="text-sm font-medium text-slate-900">
+          {selectedCount} of {items.length} selected
+        </span>
+      </div>
 
-      {/* Duplicate handling legend */}
-      <Divider />
+      <hr className="border-slate-100" />
 
       {/* List of medicine rows */}
-      <Flex as="ul" direction="column" space-y-3>
+      <ul className="space-y-3">
         {inventoryItems.map((item) => {
           const medicine: MedicineChecklistItemProps['medicine'] = {
             medicineId: item.medicineId,
@@ -104,9 +85,6 @@ export default function InventoryPanel({
             onEdit: onEdit,
             onLookup: onLookup,
             onSubmit: (_itemArg: MedicineChecklistItem) => {
-              // For now, we ignore the itemArg and call the outer onSubmit with the original item.
-              // This is a temporary fix to get the build to pass.
-              // In a real implementation, we would need to extract the current state from itemArg.
               return onSubmit(item);
             },
             onResolveDuplicate: onResolveDuplicate,
@@ -122,19 +100,16 @@ export default function InventoryPanel({
 
           return <MedicineChecklistItemComponent key={item.id} {...itemProps} />;
         })}
-      </Flex>
+      </ul>
 
       {/* Submit button */}
-      {isSubmitting ? null : (
-        <Button
+      {!isSubmitting && (
+        <button
           onClick={onSubmitAll}
-          variant="solid"
-          colorScheme="brand"
-          size="lg"
-          loading={isSubmitting}
+          className="h-11 rounded-2xl bg-brand-600 px-6 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
         >
           Add Selected to Inventory
-        </Button>
+        </button>
       )}
 
       {/* Global error */}

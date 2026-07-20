@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     OCR_ENGINE: str = "paddleocr"
     OCR_LANGUAGES: list[str] = ["en"]
     OCR_CONFIDENCE_THRESHOLD: float = 0.6
+    OCR_LOW_CONFIDENCE_WARN_THRESHOLD: float = 0.4
+    OCR_LOW_CONFIDENCE_REJECT_THRESHOLD: float = 0.25
     OCR_MAX_UPLOAD_MB: int = 5
     OCR_ALLOWED_MIME_TYPES: str = "image/png,image/jpeg,application/pdf"
     OCR_TEMP_DIR: str = "/tmp/medigen_ocr"
@@ -33,6 +35,12 @@ class Settings(BaseSettings):
     OCR_PREPROCESS_APPLY_CLAHE: bool = True
     OCR_PREPROCESS_DENOISE: bool = True
     OCR_USE_ANGLE_CLS: bool = False
+    # Image quality check configuration
+    OCR_ENABLE_QUALITY_CHECK: bool = True
+    OCR_BLUR_THRESHOLD: float = 100.0
+    OCR_MIN_BRIGHTNESS: int = 40
+    OCR_MAX_BRIGHTNESS: int = 240
+    OCR_MIN_CONTRAST: float = 20.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

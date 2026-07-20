@@ -117,5 +117,13 @@ class MedicalRecordDocument(TimestampMixin, SoftDeleteMixin, Base):
     follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     diagnosis: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ocr_confidence: Mapped[float | None] = mapped_column(nullable=True)
+    ocr_processed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ocr_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    blur_score: Mapped[float | None] = mapped_column(nullable=True)
+    brightness: Mapped[float | None] = mapped_column(nullable=True)
+    contrast: Mapped[float | None] = mapped_column(nullable=True)
+    is_pass: Mapped[bool | None] = mapped_column(nullable=True)
+    issues: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     medical_record = relationship("MedicalRecord", back_populates="documents")

@@ -5,6 +5,9 @@ interface TextareaProps extends HTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string | null;
   hint?: string;
+  name?: string;
+  value?: string;
+  placeholder?: string;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(

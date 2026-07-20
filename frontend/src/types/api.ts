@@ -451,6 +451,15 @@ export interface MedicalRecordDeleteResponse {
   message: string;
 }
 
+export interface SubmissionResultItem {
+  id: string;
+  medicineName: string;
+  medicineId: number | null;
+  status: "added" | "skipped" | "failed";
+  error: string | null;
+  inventoryItemId?: number;
+}
+
 export interface MedicineForInventory {
   id: string;
   medicineId: number | null;

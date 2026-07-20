@@ -19,6 +19,14 @@ class MedicalRecordDocumentCreate(BaseModel):
     follow_up_date: date | None = None
     diagnosis: str | None = Field(default=None, max_length=255)
     notes: str | None = None
+    ocr_confidence: float | None = None
+    ocr_processed_at: datetime | None = None
+    ocr_source: str | None = None
+    blur_score: float | None = None
+    brightness: float | None = None
+    contrast: float | None = None
+    is_pass: bool | None = None
+    issues: list[str] | None = None
 
     @field_validator("file_name", "file_type", "storage_path")
     @classmethod
@@ -106,6 +114,14 @@ class MedicalRecordDocumentResponse(BaseModel):
     follow_up_date: date | None = None
     diagnosis: str | None = None
     notes: str | None = None
+    ocr_confidence: float | None = None
+    ocr_processed_at: datetime | None = None
+    ocr_source: str | None = None
+    blur_score: float | None = None
+    brightness: float | None = None
+    contrast: float | None = None
+    is_pass: bool | None = None
+    issues: list[str] | None = None
 
 
 class MedicalRecordResponse(BaseModel):

@@ -1,5 +1,4 @@
-import { Card, Flex, Icon, Badge } from "@chakra-ui/react";
-import { CheckCircleIcon, XCircleIcon, HourglassIcon } from "@chakra-ui/icons";
+import { CheckCircle, XCircle, Clock } from "lucide-react";
 import type { SubmissionResultItem } from "@/types/api";
 
 interface SubmissionSummaryProps {
@@ -25,93 +24,76 @@ export default function SubmissionSummary({
     addedCount > 0 && skippedCount === 0 && failedCount === 0 ? "success" :
     failedCount > 0 ? "failed" : "partial";
 
-  /* Get status badge color */
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "added": return "success";
-      case "skipped": return "amber";
-      case "failed": return "red";
-      default: return "default";
-    }
-  };
-
   /* Overall summary text */
   const summaryText = `${addedCount} added, ${skippedCount} skipped, ${failedCount} failed`;
 
-  return (
-    <Card
-      variant="outline"
-      colorScheme={getStatusColor(overallStatus)}
-     maxW="sm"
-     mt={4}
-     mb={4}
-     borderRadius="lg"
-    >
-      <Flex justify="center" align="center" mb={2}>
-        <Icon as={overallStatus === "success" ? CheckCircleIcon : overallStatus === "failed" ? XCircleIcon : HourglassIcon}
-          color="inherit"
-          size={24} />
-      </Flex>
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "success": return CheckCircle;
+      case "failed": return XCircle;
+      default: return Clock;
+    }
+  };
 
-      <Flex justify="center" space-y-1>
-        <Badge colorScheme={getStatusColor(overallStatus)} textStyle="lg">
-          {summaryText}
-        </Badge>
-      </Flex>
+  const IconComponent = getStatusIcon(overallStatus);
+
+  const statusColors: Record<string, string> = {
+    success: "border-mint-200 bg-mint-50 text-mint-700",
+    failed: "border-rose-200 bg-rose-50 text-rose-700",
+    partial: "border-amber-200 bg-amber-50 text-amber-700",
+    "no-data": "border-slate-200 bg-slate-50 text-slate-500",
+  };
+
+  const badgeColors: Record<string, string> = {
+    added: "bg-mint-100 text-mint-700",
+    skipped: "bg-amber-100 text-amber-700",
+    failed: "bg-rose-100 text-rose-700",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-5 sm:p-6 ${statusColors[overallStatus] || statusColors["no-data"]}`}>
+      <div className="flex flex-col items-center gap-3 mb-4">
+        <IconComponent className="h-8 w-8" />
+        <span className="text-sm font-semibold">{summaryText}</span>
+      </div>
 
       {/* Detailed results */}
-      <Flex flexDirection="column" space-y-2 mt={2}>
-        {results.map((result) => {
-          const isSuccess = result.status === "added";
-          const isSkipped = result.status === "skipped";
-          const isFailed = result.status === "failed";
-
-          return (
-            <Flex items-start space-y-1 text-sm>
-              <Badge
-                as="span"
-                colorScheme={getStatusColor(result.status)}
-                size="md"
-                ml={1}
-                pl={1}
-              >
-                {result.status === "added" ? CheckCircleIcon : result.status === "skipped" ? HourglassIcon : XCircleIcon}
-              </Badge>
-
+      {results.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {results.map((result, i) => (
+            <div key={i} className="flex items-start gap-3 text-sm">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badgeColors[result.status]}`}>
+                {result.status === "added" ? <CheckCircle className="h-3 w-3" /> : result.status === "skipped" ? <Clock className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                {result.status}
+              </span>
               <div>
-                <strong>{result.medicineName}</strong>
-                {result.status === "added" && <span className="text-green-600">Added successfully</span>}
-                {result.status === "skipped" && <span className="text-amber-600">Skipped</span>}
-                {result.status === "failed" && (
-                  <span className="text-red-600">
-                    Failed: {result.error || "Unknown error"}
-                  </span>
-                )}
+                <strong className="text-slate-900">{result.medicineName}</strong>
+                <span className="ml-2 text-slate-500">
+                  {result.status === "added" && "Added successfully"}
+                  {result.status === "skipped" && "Skipped"}
+                  {result.status === "failed" && `Failed: ${result.error || "Unknown error"}`}
+                </span>
               </div>
-            </Flex>
-          );
-        })}
-      </Flex>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Action buttons */}
-      <Flex justify="center" space-x-2 mt={3}>
-        <Button
+      <div className="flex justify-center gap-3 mt-4">
+        <button
           onClick={onViewInventory}
-          variant="solid"
-          colorScheme="teal"
-          size="lg"
+          className="h-11 rounded-2xl bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
         >
           View Inventory
-        </Button>
-        <Button
+        </button>
+        <button
           onClick={onScanAnother}
-          variant="ghost"
-          size="lg"
-          colorScheme="gray"
+          className="h-11 rounded-2xl bg-white px-5 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
         >
           Scan Another
-        </Button>
-      </Flex>
-    </Card>
+        </button>
+      </div>
+    </div>
   );
 }
