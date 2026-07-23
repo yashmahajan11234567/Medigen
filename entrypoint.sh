@@ -1,19 +1,21 @@
-﻿#!/bin/sh
+#!/bin/sh
 set -e
 
-echo "Current working directory: $(pwd)"
-echo "Python version: $(python --version)"
-echo "DATABASE_URL: ${DATABASE_URL:-unset}"
+echo "=== STEP 1: Startup ==="
 
-if [ -n "$DATABASE_URL" ]; then
-    echo "DATABASE_URL scheme: $(echo "$DATABASE_URL" | grep -o '^[^:]*')"
-fi
+echo "=== STEP 2: pwd ==="
+pwd
 
-echo "Alembic config: $(find . -name 'alembic.ini' -print -quit)"
-echo "Running Alembic migrations..."
+echo "=== STEP 3: python ==="
+python --version
 
+echo "=== STEP 4: env ==="
+echo "DATABASE_URL=${DATABASE_URL:-unset}"
+echo "MEDIGEN_ENVIRONMENT=${MEDIGEN_ENVIRONMENT:-unset}"
+
+echo "=== STEP 5: alembic ==="
 alembic upgrade head
+echo "Alembic OK"
 
-echo "Migrations completed."
-
+echo "=== STEP 6: uvicorn ==="
 exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
