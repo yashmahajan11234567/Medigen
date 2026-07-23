@@ -1,17 +1,18 @@
-# Production Dockerfile for Medigen backend
+﻿# Production Dockerfile for Medigen backend
 # -------------------------------------------------
-# Use an official lightweight Python image.
 FROM python:3.12-slim AS base
 
 # Set environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PORT=8000 \
+    USER_ID=1001 \
+    GROUP_ID=1001
 
-# Install OS-level dependencies required by OpenCV and other packages
-# Clean up apt lists to keep the image small.
+# Install OS-level dependencies (curl for health checks, OpenCV libs)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        curl \
         gcc \
         libgl1 \
         libglib2.0-0 \
@@ -20,6 +21,10 @@ RUN apt-get update && \
         libxrender1 && \
     rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user for container security
+RUN groupadd -g ${GROUP_ID} appuser && \
+    useradd -m -u ${USER_ID} -g appuser appuser
+
 # Set work directory
 WORKDIR /app
 
@@ -27,15 +32,21 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entrypoint script and make it executable
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copy the entrypoint script into work directory and make it executable
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 # Copy application code
 COPY . .
 
-# Expose the port that Render (or any platform) will assign
-EXPOSE ${PORT:-8000}
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose the application port
+EXPOSE 8000
 
 # Run migrations and start the server
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["./entrypoint.sh"]

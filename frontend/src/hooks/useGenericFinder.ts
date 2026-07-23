@@ -14,24 +14,24 @@ export function useGenericFinder() {
   const [selectedMedicine, setSelectedMedicine] = useState<GenericMedicineSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);\n  const [apiMessage, setApiMessage] = useState<string | null>(null);
 
   // Search when debounced search term changes (and is not empty)
   useEffect(() => {
     if (debouncedSearchTerm.trim() === "") {
       setResults([]);
       return;
-    }
+    }\n      setApiMessage(null);
 
     const searchMedicines = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<GenericFinderSearchResponse>(
+        const response = await apiClient.post<GenericFinderSearchResponse>(
           "/api/v1/generic/search",
-          { params: { brand_name: debouncedSearchTerm } }
+          { medicine_name: debouncedSearchTerm }
         );
-        setResults(response.data.matches);
+        setResults(response.data.matches);\n        setApiMessage(response.data.message);
       } catch (err: any) {
         setError(
           err.response?.data?.message ||
@@ -39,7 +39,7 @@ export function useGenericFinder() {
             "An error occurred while searching"
         );
         setResults([]);
-        console.error("Search error:", err);
+        console.error("Search error:", err);\n      setApiMessage(null);
       } finally {
         setLoading(false);
       }
@@ -82,15 +82,12 @@ export function useGenericFinder() {
     }
   };
 
-  return {
-    searchTerm,
-    setSearchTerm,
-    results,
-    selectedMedicine,
-    loading,
-    error,
-    success,
-    selectMedicine,
-    addToInventory,
-  };
+  return {\n    searchTerm,\n    setSearchTerm,\n    results,\n    selectedMedicine,\n    loading,\n    error,\n    success,\n    selectMedicine,\n    addToInventory,\n    apiMessage,\n  };;\n    apiMessage,\n  };
 }
+
+
+
+
+
+
+

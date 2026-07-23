@@ -15,7 +15,8 @@ interface InventoryPanelProps {
   onSubmitAll: () => void;
   isSubmitting: boolean;
   onResolveDuplicate: (item: MedicineChecklistItem, action: "update" | "skip" | "separate") => void;
-  error?: string;
+  
+  ocrMessage?: string;
 }
 
 export default function InventoryPanel({
@@ -26,10 +27,11 @@ export default function InventoryPanel({
   onEdit,
   onLookup,
   onSubmit,
+  onSubmitAll,
   isSubmitting,
   onResolveDuplicate,
-  onSubmitAll,
   error,
+  ocrMessage,
 }: InventoryPanelProps) {
   const inventoryItems = useMemo(() => items, [items]);
 
@@ -63,45 +65,50 @@ export default function InventoryPanel({
       <hr className="border-slate-100" />
 
       {/* List of medicine rows */}
-      <ul className="space-y-3">
-        {inventoryItems.map((item) => {
-          const medicine: MedicineChecklistItemProps['medicine'] = {
-            medicineId: item.medicineId,
-            name: item.name,
-            genericName: item.genericName,
-            brandName: item.brandName,
-            type: item.type,
-            quantity: item.quantity !== null ? String(item.quantity) : undefined,
-            quantityUnit: item.quantityUnit === null ? undefined : item.quantityUnit,
-            expiryDate: item.expiryDate === null ? undefined : item.expiryDate,
-          };
+{items.length === 0 && ocrMessage ? (
+        <div className="text-sm text-slate-500 text-center py-8">
+          {ocrMessage}
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {inventoryItems.map((item) => {
+            const medicine: MedicineChecklistItemProps['medicine'] = {
+              medicineId: item.medicineId,
+              name: item.name,
+              genericName: item.genericName,
+              brandName: item.brandName,
+              type: item.type,
+              quantity: item.quantity !== null ? String(item.quantity) : undefined,
+              quantityUnit: item.quantityUnit === null ? undefined : item.quantityUnit,
+              expiryDate: item.expiryDate === null ? undefined : item.expiryDate,
+            };
 
-          const itemProps = {
-            id: item.id,
-            medicine,
-            onToggle: onToggle,
-            onSelectAll: onSelectAll,
-            onClearAll: onClearAll,
-            onEdit: onEdit,
-            onLookup: onLookup,
-            onSubmit: (_itemArg: MedicineChecklistItem) => {
-              return onSubmit(item);
-            },
-            onResolveDuplicate: onResolveDuplicate,
-            onSubmitAll: onSubmitAll,
-            isSubmitting: isSubmitting,
-            isKnown: item.isKnown,
-            isDuplicate: item.isDuplicate,
-            editField: undefined,
-            editValue: undefined,
-            error: item.error === null ? undefined : item.error,
-            randomId: item.id + Math.random().toString(36).substr(2, 9),
-          } as MedicineChecklistItemProps;
-
-          return <MedicineChecklistItemComponent key={item.id} {...itemProps} />;
-        })}
-      </ul>
-
+            const itemProps = {
+              id: item.id,
+              medicine,
+              onToggle: onToggle,
+              onSelectAll: onSelectAll,
+              onClearAll: onClearAll,
+              onEdit: onEdit,
+              onLookup: onLookup,
+              onSubmit: (_itemArg: MedicineChecklistItem) => {
+                return onSubmit(item);
+              },
+              onResolveDuplicate: onResolveDuplicate,
+              onSubmitAll: onSubmitAll,
+              isSubmitting: isSubmitting,
+              isKnown: item.isKnown,
+              isDuplicate: item.isDuplicate,
+              editField: undefined,
+              editValue: undefined,
+              error: item.error === null ? undefined : item.error,
+              randomId: item.id + Math.random().toString(36).substr(2, 9),
+            } as MedicineChecklistItemProps;
+            
+            return <MedicineChecklistItemComponent key={item.id} {...itemProps} />;
+          })}
+        </ul>
+      )
       {/* Submit button */}
       {!isSubmitting && (
         <button
@@ -121,3 +128,5 @@ export default function InventoryPanel({
     </div>
   );
 }
+
+

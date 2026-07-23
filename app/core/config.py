@@ -1,7 +1,8 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Self
 
 
 class Settings(BaseSettings):
@@ -55,6 +56,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @model_validator(mode="after")
+    def enforce_production_secret(self) -> Self:
+        if self.environment == "production" and self.secret_key == "change-this-secret-key":
+            raise ValueError(
+                "MEDIGEN_SECRET_KEY must be set to a strong, unique value in production. "
+                "Do not use the default secret key."
+            )
+        return self
 
 
 @lru_cache

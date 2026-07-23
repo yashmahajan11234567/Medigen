@@ -20,7 +20,7 @@ export function useMedicalRecords() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await apiClient.get<MedicalRecordListResponse>("/api/v1/medical-records");
+      const response = await apiClient.get<MedicalRecordListResponse>("/medical-records");
       setRecords(response.data.items);
     } catch (err: any) {
       const message =
@@ -41,7 +41,7 @@ export function useMedicalRecords() {
       setSuccess(null);
       try {
         const response = await apiClient.get<MedicalRecordListResponse>(
-          "/api/v1/medical-records/search",
+          "/medical-records/search",
           {
             params: { query },
           }
@@ -78,7 +78,7 @@ export function useMedicalRecords() {
       setSuccess(null);
       try {
         const response = await apiClient.get<MedicalRecordListResponse>(
-          "/api/v1/medical-records/filter",
+          "/medical-records/filter",
           {
             params: {
               document_type: documentType === "" ? undefined : documentType,
@@ -110,7 +110,7 @@ export function useMedicalRecords() {
       setSuccess(null);
       try {
         const response = await apiClient.post<MedicalRecordResponse>(
-          "/api/v1/medical-records",
+          "/medical-records",
           data
         );
         setRecords((prev) => [...prev, response.data]);
@@ -136,7 +136,7 @@ export function useMedicalRecords() {
       setError(null);
       setSuccess(null);
       try {
-        await apiClient.put(`/api/v1/medical-records/${id}`, data);
+        await apiClient.put(`/medical-records/${id}`, data);
         setRecords((prev) =>
           prev.map((record) =>
             record.id === id
@@ -166,7 +166,7 @@ export function useMedicalRecords() {
       setSuccess(null);
       try {
         const response = await apiClient.delete<MedicalRecordDeleteResponse>(
-          `/api/v1/medical-records/${id}`
+          `/medical-records/${id}`
         );
         setRecords((prev) => prev.filter((record) => record.id !== id));
         setSuccess("Record deleted successfully");
@@ -192,7 +192,7 @@ export function useMedicalRecords() {
       setSuccess(null);
       try {
         const response = await apiClient.post<MedicalRecordResponse>(
-          "/api/v1/medical-records/link",
+          "/medical-records/link",
           payload
         );
         // Update the record in the list if it exists

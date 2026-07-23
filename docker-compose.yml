@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   db:
@@ -35,7 +35,7 @@ services:
       MEDIGEN_ACCESS_TOKEN_EXPIRE_MINUTES: ${MEDIGEN_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       MEDIGEN_DATABASE_URL: ${MEDIGEN_DATABASE_URL:-postgresql://medigen:medigenpass@db:5432/medigen}
       MEDIGEN_AUTO_CREATE_TABLES: ${MEDIGEN_AUTO_CREATE_TABLES:-true}
-      MEDIGEN_CORS_ORIGINS: ${MEDIGEN_CORS_ORIGINS:-'["http://localhost:3000"]'}
+      MEDIGEN_CORS_ORIGINS: ${MEDIGEN_CORS_ORIGINS:-http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy
@@ -57,10 +57,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-    # No direct dependence on the backend for startup, but the frontend will need the backend to be available at runtime.
-    # We rely on the frontend's ability to handle backend unavailability (show error, retry, etc.)
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 15s
       timeout: 3s
       retries: 3

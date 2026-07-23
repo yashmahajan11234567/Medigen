@@ -1,4 +1,4 @@
-from app.core.constants import NO_EXACT_GENERIC_SUBSTITUTE_FOUND
+﻿from app.core.constants import NO_EXACT_GENERIC_SUBSTITUTE_FOUND
 from app.core.exceptions import AppException
 from app.repositories.medicine_repository import MedicineRepository
 from app.schemas.generic_finder import (

@@ -1,4 +1,4 @@
-# .dockerignore for Medigen repository
+﻿# .dockerignore for Medigen repository
 # Exclude Python caches, git history, IDE config, logs, build artifacts, and local env files
 __pycache__/
 *.py[cod]
@@ -13,13 +13,23 @@ build/
 .git
 .gitignore
 .env
+.env.*
 .venv
 venv
 .idea/
 .vscode/
-*.log
 .DS_Store
+Thumbs.db
 render.yaml
 render.yml
 *.md
-frontend/node_modules/
+node_modules/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+uploads/
+*.db
+*.sqlite3
+htmlcov/
+.coverage
+coverage.xml

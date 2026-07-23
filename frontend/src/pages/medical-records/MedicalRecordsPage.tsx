@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMedicalRecords } from "@/hooks/useMedicalRecords";
 import { RecordsHeader } from "@/pages/medical-records/components/RecordsHeader";
 import { RecordsSearch } from "@/pages/medical-records/components/RecordsSearch";
 import { ViewToggle } from "@/pages/medical-records/components/ViewToggle";
@@ -10,57 +11,120 @@ import { EmptyRecords } from "@/pages/medical-records/components/EmptyRecords";
 import { UploadButton } from "@/pages/medical-records/components/UploadButton";
 import { UploadModal } from "@/pages/medical-records/components/UploadModal";
 import { RecordDrawer } from "@/pages/medical-records/components/RecordDrawer";
+import { LoadingScreen } from "@/components/common/LoadingScreen";
+import { InlineError } from "@/components/feedback/InlineError";
 import type { RecordDetails } from "@/pages/medical-records/components/RecordDrawer";
+import type { MedicalRecordResponse } from "@/types/api";
 
-interface DummyRecord {
-  title: string;
-  hospital: string;
-  date: string;
-  recordType: "Prescription" | "Medicine Bill" | "Blood Report" | "Doctor Notes";
-  doctorName: string;
-  visitDate: string;
-  uploadDate: string;
-  fileSize: string;
-  category: string;
-  notes: string;
+const recordTypes = ["Prescription", "Medicine Bill", "Blood Report", "Doctor Notes"] as const;
+type RecordType = (typeof recordTypes)[number];
+
+function mapDocumentType(type: string): RecordType {
+  const normalized = type.toLowerCase();
+  if (normalized === "prescription") return "Prescription";
+  if (normalized === "pharmacy_bill") return "Medicine Bill";
+  if (normalized === "blood_report" || normalized === "lab_report") return "Blood Report";
+  if (normalized === "doctor_note") return "Doctor Notes";
+  return "Prescription";
 }
 
-const dummyRecords: DummyRecord[] = [
-  { title: "General Checkup", hospital: "City Hospital", date: "12 Mar 2026", recordType: "Prescription", doctorName: "Dr. Sharma", visitDate: "12 Jul 2026", uploadDate: "15 Jul 2026", fileSize: "2.3 MB", category: "General", notes: "Annual health checkup. All vitals normal. Recommended Vitamin D supplements." },
-  { title: "Blood Test Results", hospital: "MediLab", date: "28 Feb 2026", recordType: "Blood Report", doctorName: "Dr. Verma", visitDate: "28 Feb 2026", uploadDate: "01 Mar 2026", fileSize: "1.8 MB", category: "General", notes: "Complete blood count and lipid profile. Cholesterol levels slightly elevated." },
-  { title: "Pharmacy Receipt", hospital: "HealthPlus Pharmacy", date: "15 Jan 2026", recordType: "Medicine Bill", doctorName: "—", visitDate: "15 Jan 2026", uploadDate: "15 Jan 2026", fileSize: "0.4 MB", category: "General", notes: "Monthly medicine purchase." },
-  { title: "Consultation Notes", hospital: "Apollo Clinic", date: "05 Jan 2026", recordType: "Doctor Notes", doctorName: "Dr. Gupta", visitDate: "05 Jan 2026", uploadDate: "06 Jan 2026", fileSize: "0.9 MB", category: "General", notes: "Patient complained of mild fever and body ache. Prescribed rest and paracetamol." },
-  { title: "Fever Treatment", hospital: "City Hospital", date: "20 Dec 2025", recordType: "Prescription", doctorName: "Dr. Sharma", visitDate: "20 Dec 2025", uploadDate: "21 Dec 2025", fileSize: "1.2 MB", category: "Fever", notes: "Viral fever. Antibiotics and antipyretics prescribed for 5 days." },
-  { title: "Lipid Profile", hospital: "Diagnostic Centre", date: "10 Dec 2025", recordType: "Blood Report", doctorName: "Dr. Mehta", visitDate: "10 Dec 2025", uploadDate: "12 Dec 2025", fileSize: "1.5 MB", category: "Heart", notes: "Lipid profile shows high LDL. Dietary changes recommended." },
-  { title: "Dental Checkup", hospital: "Smile Dental", date: "02 Dec 2025", recordType: "Doctor Notes", doctorName: "Dr. Patel", visitDate: "02 Dec 2025", uploadDate: "02 Dec 2025", fileSize: "0.7 MB", category: "Dental", notes: "Routine dental examination. Minor plaque buildup. Teeth cleaning performed." },
-  { title: "Monthly Medication", hospital: "Wellness Pharmacy", date: "28 Nov 2025", recordType: "Medicine Bill", doctorName: "—", visitDate: "28 Nov 2025", uploadDate: "28 Nov 2025", fileSize: "0.3 MB", category: "General", notes: "Monthly refill of prescribed medications." },
-];
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function convertToRecordCardData(record: MedicalRecordResponse) {
+  const firstDoc = record.documents[0];
+  const docType = firstDoc ? mapDocumentType(firstDoc.document_type) : "Prescription";
+
+  return {
+    title: record.title,
+    hospital: record.hospital_name || "Unknown Hospital",
+    date: formatDate(record.visit_date),
+    recordType: docType,
+    id: record.id,
+  };
+}
+
+function convertToRecordListRow(record: MedicalRecordResponse) {
+  const firstDoc = record.documents[0];
+  const docType = firstDoc ? mapDocumentType(firstDoc.document_type) : "Prescription";
+
+  return {
+    title: record.title,
+    hospital: record.hospital_name || "Unknown Hospital",
+    date: formatDate(record.visit_date),
+    recordType: docType,
+  };
+}
+
+function convertToRecordDetails(record: MedicalRecordResponse): RecordDetails {
+  const firstDoc = record.documents[0];
+  const docType = firstDoc ? mapDocumentType(firstDoc.document_type) : "Prescription";
+
+  return {
+    title: record.title,
+    documentType: docType,
+    hospital: record.hospital_name || "Unknown Hospital",
+    doctorName: record.doctor_name || "—",
+    visitDate: formatDate(record.visit_date),
+    uploadDate: firstDoc ? formatDateTime(firstDoc.upload_date) : "—",
+    fileSize: firstDoc ? formatFileSize(firstDoc.file_size) : "—",
+    category: record.folder_name || "General",
+    notes: record.notes || "",
+  };
+}
 
 export function MedicalRecordsPage() {
+  const {
+    records,
+    loading,
+    error,
+    fetchRecords,
+  } = useMedicalRecords();
+
   const [view, setView] = useState<"gallery" | "list">("gallery");
   const [sortBy, setSortBy] = useState("Disease");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<RecordDetails | null>(null);
 
-  const openDrawer = (record: DummyRecord) => {
-    setSelectedRecord({
-      title: record.title,
-      documentType: record.recordType,
-      hospital: record.hospital,
-      doctorName: record.doctorName,
-      visitDate: record.visitDate,
-      uploadDate: record.uploadDate,
-      fileSize: record.fileSize,
-      category: record.category,
-      notes: record.notes,
-    });
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  const openDrawer = (record: MedicalRecordResponse) => {
+    setSelectedRecord(convertToRecordDetails(record));
     setDrawerOpen(true);
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
   };
+
+  const cardRecords = records.map(convertToRecordCardData);
+  const listRecords = records.map(convertToRecordListRow);
 
   return (
     <div className="space-y-6">
@@ -87,26 +151,47 @@ export function MedicalRecordsPage() {
           <div className="h-1 w-8 rounded-full bg-brand-500" />
           <h2 className="text-lg font-semibold text-slate-900">All Records</h2>
         </div>
-        {dummyRecords.length === 0 ? (
-          <EmptyRecords />
-        ) : view === "gallery" ? (
-          <div className="grid grid-cols-2 gap-3 pb-20 sm:grid-cols-3 md:grid-cols-4">
-            {dummyRecords.map((r) => (
-              <RecordCard
-                key={r.title}
-                title={r.title}
-                hospital={r.hospital}
-                date={r.date}
-                recordType={r.recordType}
-                onClick={() => openDrawer(r)}
-              />
-            ))}
+
+        {loading && records.length === 0 && (
+          <LoadingScreen
+            title="Loading records…"
+            description="Please wait while we fetch your medical records."
+          />
+        )}
+
+        {error && !loading && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+            <InlineError title="Failed to load records" message={error} />
           </div>
-        ) : (
+        )}
+
+        {!loading && !error && records.length === 0 && (
+          <EmptyRecords />
+        )}
+
+        {!loading && !error && records.length > 0 && view === "gallery" && (
+          <div className="grid grid-cols-2 gap-3 pb-20 sm:grid-cols-3 md:grid-cols-4">
+            {records.map((record) => {
+              const cardData = convertToRecordCardData(record);
+              return (
+                <RecordCard
+                  key={record.id}
+                  title={cardData.title}
+                  hospital={cardData.hospital}
+                  date={cardData.date}
+                  recordType={cardData.recordType}
+                  onClick={() => openDrawer(record)}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {!loading && !error && records.length > 0 && view === "list" && (
           <div className="pb-20">
             <RecordList
-              records={dummyRecords}
-              onRecordClick={(i) => openDrawer(dummyRecords[i])}
+              records={listRecords}
+              onRecordClick={(i) => openDrawer(records[i])}
             />
           </div>
         )}

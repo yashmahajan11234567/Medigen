@@ -82,16 +82,16 @@ class SchedulerService:
             source=payload.source,
         )
 
-        with self._transaction_scope():
-            created = self.schedule_repository.create_schedule(schedule, reminders, commit=False)
-            self._integrate_inventory(
-                user_id=user_id,
-                medicine_id=medicine.id,
-                quantity=payload.quantity,
-                quantity_unit=payload.quantity_unit,
-                expiry_date=payload.expiry_date,
-                commit=False,
-            )
+        created = self.schedule_repository.create_schedule(schedule, reminders, commit=False)
+        self._integrate_inventory(
+            user_id=user_id,
+            medicine_id=medicine.id,
+            quantity=payload.quantity,
+            quantity_unit=payload.quantity_unit,
+            expiry_date=payload.expiry_date,
+            commit=False,
+        )
+        self.session.commit()
         created = self.schedule_repository.get_schedule_by_id(user_id=user_id, schedule_id=created.id)
         return self._to_response(created)
 

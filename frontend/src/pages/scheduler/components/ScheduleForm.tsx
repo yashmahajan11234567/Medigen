@@ -72,8 +72,8 @@ export function ScheduleForm({ onCreate }: ScheduleFormProps) {
     const durationMatch = duration.match(/^(\d+\s*Days$)/i);
     const durationDays = durationMatch ? parseInt(durationMatch[1], 10) : 7;
 
-    // Convert mealTiming (e.g., "After Meal") to food_tyming (e.g., "after_food")
-    const foodTymingValue = mealTiming
+    // Convert mealTiming (e.g., "After Meal") to food_timing (e.g., "after_food")
+    const foodTimingValue = mealTiming
       .toLowerCase()
       .replace("meal", "food")
       .replace(" ", "_");
@@ -89,7 +89,7 @@ export function ScheduleForm({ onCreate }: ScheduleFormProps) {
       purchase_date: null,
       expiry_date: null,
       duration_days: durationDays,
-      food_tyming: foodTymingValue,
+      food_timing: foodTimingValue,
       reminder_times: null,
       notes: notes || null,
       source: "manual",

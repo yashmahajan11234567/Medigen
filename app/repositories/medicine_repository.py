@@ -15,8 +15,8 @@ class MedicineRepository(BaseRepository):
                 Medicine.is_deleted.is_(False),
                 Medicine.brand_name.is_not(None),
                 or_(
-                    func.lower(func.trim(Medicine.brand_name)) == normalized_query,
-                    func.lower(func.trim(Medicine.name)) == normalized_query,
+                    func.lower(func.trim(Medicine.brand_name)).contains(normalized_query),
+                    func.lower(func.trim(Medicine.name)).contains(normalized_query),
                 ),
             )
             .order_by(Medicine.name.asc(), Medicine.id.asc())

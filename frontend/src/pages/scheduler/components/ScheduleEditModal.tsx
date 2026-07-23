@@ -97,8 +97,8 @@ export function ScheduleEditModal({ open, onClose, schedule, updateSchedule }: S
     const durationMatch = duration.match(/^(\d+)\s*Days$/i);
     const durationDays = durationMatch ? parseInt(durationMatch[1], 10) : 7;
 
-    // Convert mealTiming (e.g., "After Meal") to food_tyming (e.g., "after_food")
-    const foodTymingValue = mealTiming
+    // Convert mealTiming (e.g., "After Meal") to food_timing (e.g., "after_food")
+    const foodTimingValue = mealTiming
       .toLowerCase()
       .replace("meal", "food")
       .replace(" ", "_");
@@ -106,7 +106,7 @@ export function ScheduleEditModal({ open, onClose, schedule, updateSchedule }: S
     // Prepare payload
     const payload: ScheduleUpdateRequest = {
       dosage_pattern: `${morning}-${afternoon}-${night}`,
-      food_tyming: foodTymingValue,
+      food_timing: foodTimingValue,
       start_date: schedule.start_date, // Keep original start date
       end_date: schedule.end_date,
       duration_days: durationDays,

@@ -11,7 +11,7 @@ export function useProfile() {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get<User>("/api/v1/users/me");
+      const response = await apiClient.get<User>("/auth/me");
       setUser(response.data);
     } catch (err: any) {
       const message =

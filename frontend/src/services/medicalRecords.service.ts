@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+﻿import { apiClient } from "@/lib/api-client";
 import type {
   MedicalRecordCreateRequest,
   MedicalRecordDeleteResponse,
@@ -24,8 +24,21 @@ export const medicalRecordsService = {
     dateFrom?: string;
     dateTo?: string;
   }): Promise<MedicalRecordListResponse> {
+    const snakeParams: Record<string, string> = {};
+    if (params.documentType !== undefined) {
+      snakeParams.document_type = params.documentType;
+    }
+    if (params.hospital !== undefined) {
+      snakeParams.hospital = params.hospital;
+    }
+    if (params.dateFrom !== undefined) {
+      snakeParams.date_from = params.dateFrom;
+    }
+    if (params.dateTo !== undefined) {
+      snakeParams.date_to = params.dateTo;
+    }
     return apiClient
-      .get<MedicalRecordListResponse>("/medical-records/filter", { params })
+      .get<MedicalRecordListResponse>('/medical-records/filter', { params: snakeParams })
       .then((r) => r.data);
   },
 

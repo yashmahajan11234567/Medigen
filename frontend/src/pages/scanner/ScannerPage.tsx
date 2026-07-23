@@ -461,6 +461,7 @@ export function ScannerPage() {
     ocrData?.mode === "composition"
       ? { mode: "composition" as const, composition: { ingredient: "", strength: "", unit: "", dosage_form: "", route: "" } }
       : { mode: null as null };
+  const ocrMessage = ocrData?.mode === "composition" ? ocrData.data.result.message : undefined;
   const showResults =
     (ocrData !== null && status === "success") ||
     status === "processing";
@@ -540,6 +541,7 @@ export function ScannerPage() {
           onSubmitAll={handleSubmitAll}
           isSubmitting={isSubmitting}
           error={error ?? undefined}
+          ocrMessage={ocrMessage}
         />
       )}
 
@@ -570,3 +572,7 @@ export function ScannerPage() {
     </div>
   );
 }
+
+
+
+

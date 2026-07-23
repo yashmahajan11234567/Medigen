@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 set -e
 
 echo "Current working directory: $(pwd)"
@@ -12,7 +12,7 @@ fi
 echo "Alembic config: $(find . -name 'alembic.ini' -print -quit)"
 echo "Running Alembic migrations..."
 
-alembic stamp head
+alembic upgrade head
 
 echo "Migrations completed."
 

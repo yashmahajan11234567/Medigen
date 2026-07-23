@@ -10,7 +10,7 @@ import { useGenericFinder } from "@/hooks/useGenericFinder";
 import { Search as SearchIcon, Pill as PillIcon } from "lucide-react";
 
 export function GenericFinderPage() {
-  const {
+  {
     searchTerm,
     setSearchTerm,
     results,
@@ -20,6 +20,7 @@ export function GenericFinderPage() {
     success,
     selectMedicine,
     addToInventory,
+    apiMessage,
   } = useGenericFinder();
 
   const [copySuccess, setCopySuccess] = useState(false);
@@ -102,13 +103,7 @@ export function GenericFinderPage() {
                           <p className="text-sm text-slate-600">
                             Generic: {med.generic_name}
                           </p>
-                        )}
-                        {med.brand_name && (
-                          <p className="text-sm text-slate-600">
-                            Brand: {med.brand_name}
-                          </p>
-                        )}
-                      </div>
+                        )}</div>
                       <div className="text-xs text-slate-500">
                         {med.composition.ingredient} {med.composition.strength} {med.composition.unit}
                       </div>
@@ -123,7 +118,7 @@ export function GenericFinderPage() {
             <EmptyState
               icon={SearchIcon}
               title="No medicines found"
-              description="Try a different search term or check the spelling."
+              description={apiMessage ?? "Try a different search term or check the spelling."}
             />
           )}
         </div>
@@ -193,3 +188,8 @@ export function GenericFinderPage() {
     </>
   );
 }
+
+
+
+
+

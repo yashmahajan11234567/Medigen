@@ -244,7 +244,7 @@ export interface ReminderTimesInput {
 export interface ScheduleBaseRequest {
   medicine_id: number;
   dosage_pattern: string; // e.g., "1-0-1"
-  food_tyming: string; // "before_food" | "after_food"
+  food_timing: string; // "before_food" | "after_food"
   start_date: string; // ISO date
   end_date: string | null;
   duration_days: number | null;
@@ -263,7 +263,7 @@ export interface ScheduleCreateRequest extends ScheduleBaseRequest {
 
 export interface ScheduleUpdateRequest {
   dosage_pattern?: string;
-  food_tyming?: string;
+  food_timing?: string;
   start_date?: string;
   end_date?: string;
   duration_days?: number;
