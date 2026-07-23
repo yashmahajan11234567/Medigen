@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { PageIntro } from "@/components/common/PageIntro";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
@@ -10,7 +10,7 @@ import { useGenericFinder } from "@/hooks/useGenericFinder";
 import { Search as SearchIcon, Pill as PillIcon } from "lucide-react";
 
 export function GenericFinderPage() {
-  {
+  const {
     searchTerm,
     setSearchTerm,
     results,
@@ -72,7 +72,7 @@ export function GenericFinderPage() {
 
           {loading && results.length === 0 && (
             <LoadingScreen
-              title="Searching for medicines…"
+              title="Searching for medicinesâ€¦"
               description="Please wait while we search the database."
             />
           )}

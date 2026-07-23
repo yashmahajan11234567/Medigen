@@ -1,4 +1,4 @@
-import MedicineChecklistItemComponent from "./MedicineChecklistItem";
+﻿import MedicineChecklistItemComponent from "./MedicineChecklistItem";
 import { MedicineChecklistItemProps } from "./MedicineChecklistItem";
 import { MedicineChecklistItem } from "./MedicineChecklistItem";
 import { useMemo } from "react";
@@ -14,6 +14,7 @@ interface InventoryPanelProps {
   onSubmit: (item: MedicineForInventory) => Promise<void>;
   onSubmitAll: () => void;
   isSubmitting: boolean;
+  error?: string;
   onResolveDuplicate: (item: MedicineChecklistItem, action: "update" | "skip" | "separate") => void;
   
   ocrMessage?: string;
@@ -65,7 +66,7 @@ export default function InventoryPanel({
       <hr className="border-slate-100" />
 
       {/* List of medicine rows */}
-{items.length === 0 && ocrMessage ? (
+      {items.length === 0 && ocrMessage ? (
         <div className="text-sm text-slate-500 text-center py-8">
           {ocrMessage}
         </div>
@@ -108,7 +109,8 @@ export default function InventoryPanel({
             return <MedicineChecklistItemComponent key={item.id} {...itemProps} />;
           })}
         </ul>
-      )
+      )}
+
       {/* Submit button */}
       {!isSubmitting && (
         <button
@@ -128,5 +130,3 @@ export default function InventoryPanel({
     </div>
   );
 }
-
-
