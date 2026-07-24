@@ -33,8 +33,17 @@ class SchedulerService:
         self.medicine_repository = MedicineRepository(session)
         self.inventory_integration_service = InventoryIntegrationService(session)
 
-    def list_schedules(self, *, user_id: int) -> ScheduleListResponse:
+    def list_schedules(
+        self,
+        *,
+        user_id: int,
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> ScheduleListResponse:
         schedules = self.schedule_repository.get_schedules_by_user(user_id=user_id)
+        if page is not None and page_size is not None:
+            start = (page - 1) * page_size
+            schedules = schedules[start : start + page_size]
         return ScheduleListResponse(items=[self._to_response(schedule) for schedule in schedules])
 
     def get_schedule(self, *, user_id: int, schedule_id: int) -> ScheduleResponse:
@@ -82,16 +91,20 @@ class SchedulerService:
             source=payload.source,
         )
 
-        created = self.schedule_repository.create_schedule(schedule, reminders, commit=False)
-        self._integrate_inventory(
+        try:
+            created = self.schedule_repository.create_schedule(schedule, reminders, commit=False)
+            self._integrate_inventory(
             user_id=user_id,
             medicine_id=medicine.id,
             quantity=payload.quantity,
             quantity_unit=payload.quantity_unit,
             expiry_date=payload.expiry_date,
             commit=False,
-        )
-        self.session.commit()
+            )
+            self.session.commit()
+        except Exception:
+            self.session.rollback()
+            raise
         created = self.schedule_repository.get_schedule_by_id(user_id=user_id, schedule_id=created.id)
         return self._to_response(created)
 

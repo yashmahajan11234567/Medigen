@@ -4,7 +4,7 @@ from app.core.enums import InventoryStatus, MedicineType, ReminderPeriod
 from app.core.exceptions import AppException
 from app.models.inventory import InventoryItem
 from app.models.medicine import Medicine
-from app.repositories.inventory_repository import InventoryRepository
+from app.repositories.inventory_repository import InventoryDuplicateError, InventoryRepository
 from app.repositories.medicine_repository import MedicineRepository
 from app.schemas.inventory import (
     InventoryCreateRequest,
@@ -31,16 +31,24 @@ class InventoryService:
         self.inventory_repository = InventoryRepository(session)
         self.medicine_repository = MedicineRepository(session)
 
-    def list_inventory(self, *, user_id: int) -> InventoryListResponse:
-        items = [self._sync_status(item) for item in self.inventory_repository.list_inventory_items(user_id=user_id)]
-        return InventoryListResponse(items=[self._to_response(item) for item in items])
+    def list_inventory(
+        self,
+        *,
+        user_id: int,
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> InventoryListResponse:
+        items = self.inventory_repository.list_inventory_items(user_id=user_id)
+        if page is not None and page_size is not None:
+            start = (page - 1) * page_size
+            items = items[start : start + page_size]
+        return InventoryListResponse(items=[self._to_response_with_computed_status(item) for item in items])
 
     def get_inventory_item(self, *, user_id: int, inventory_id: int) -> InventoryResponseItem:
         item = self.inventory_repository.get_inventory_item_by_id(user_id=user_id, inventory_id=inventory_id)
         if item is None:
             raise AppException("Inventory medicine not found.", 404, "inventory_medicine_not_found")
-        item = self._sync_status(item)
-        return self._to_response(item)
+        return self._to_response_with_computed_status(item)
 
     def create_inventory_item(self, *, user_id: int, payload: InventoryCreateRequest) -> InventoryResponseItem:
         self._validate_dates(expiry_date=payload.expiry_date, purchase_date=payload.purchase_date)
@@ -63,7 +71,15 @@ class InventoryService:
                 expiry_date=payload.expiry_date,
             ),
         )
-        created = self.inventory_repository.add_inventory_item(item)
+        try:
+            created = self.inventory_repository.add_inventory_item(item)
+        except InventoryDuplicateError:
+            # A concurrent request inserted a matching inventory row between our
+            # pre-flight check and the insert.  The repository has already
+            # rolled back, so we surface the conflict to the caller to keep
+            # the existing 409 duplicate contract intact.
+            self.session.rollback()
+            raise AppException("Duplicate medicine entry found.", 409, "duplicate_medicine") from None
         created = self._load_inventory_item(user_id=user_id, inventory_id=created.id)
         return self._to_response(created)
 
@@ -124,8 +140,8 @@ class InventoryService:
         return InventoryDeleteResponse(message="Inventory medicine deleted successfully.")
 
     def search_inventory(self, *, user_id: int, query: str) -> InventoryListResponse:
-        items = [self._sync_status(item) for item in self.inventory_repository.search_medicines(user_id=user_id, query=query)]
-        return InventoryListResponse(items=[self._to_response(item) for item in items])
+        items = self.inventory_repository.search_medicines(user_id=user_id, query=query)
+        return InventoryListResponse(items=[self._to_response_with_computed_status(item) for item in items])
 
     def filter_inventory(
         self,
@@ -134,24 +150,36 @@ class InventoryService:
         status: str | None = None,
         medicine_type: MedicineType | None = None,
     ) -> InventoryListResponse:
-        for item in self.inventory_repository.list_inventory_items(user_id=user_id):
-            self._sync_status(item)
+        items = self.inventory_repository.list_inventory_items(user_id=user_id)
+        computed_items = [self._to_response_with_computed_status(item) for item in items]
+
         statuses = self._map_filter_status(status)
-        items = [
-            self._sync_status(item)
-            for item in self.inventory_repository.filter_medicines(
-                user_id=user_id,
-                statuses=statuses,
-                medicine_type=medicine_type.value if medicine_type else None,
-            )
-        ]
-        return InventoryListResponse(items=[self._to_response(item) for item in items])
+        if statuses:
+            computed_items = [item for item in computed_items if item.status.value in statuses]
+
+        if medicine_type:
+            computed_items = [item for item in computed_items if item.type == medicine_type]
+
+        return InventoryListResponse(items=computed_items)
 
     def get_inventory_summary(self, *, user_id: int) -> InventorySummaryResponse:
         items = self.inventory_repository.list_inventory_items(user_id=user_id)
-        for item in items:
-            self._sync_status(item)
-        return InventorySummaryResponse(**self.inventory_repository.get_inventory_summary(user_id=user_id))
+        computed_items = [self._to_response_with_computed_status(item) for item in items]
+
+        statuses = [item.status for item in computed_items]
+        total = len(statuses)
+        available = sum(1 for s in statuses if s in {InventoryStatus.AVAILABLE, InventoryStatus.LOW_STOCK})
+        finished = sum(1 for s in statuses if s == InventoryStatus.OUT_OF_STOCK)
+        expiring_soon = sum(1 for s in statuses if s == InventoryStatus.EXPIRING_SOON)
+        expired = sum(1 for s in statuses if s == InventoryStatus.EXPIRED)
+
+        return InventorySummaryResponse(
+            total_medicines=total,
+            available_medicines=available,
+            finished_medicines=finished,
+            expiring_soon=expiring_soon,
+            expired=expired,
+        )
 
     def add_generic_medicine_to_inventory(
         self,
@@ -171,7 +199,27 @@ class InventoryService:
             quantity_unit = quantity_unit or "unit"
         self._validate_dates(expiry_date=expiry_date, purchase_date=None)
         self._validate_quantity_rules(medicine_type=medicine.dosage_form, quantity=quantity)
-        self._ensure_no_duplicate(user_id=user_id, medicine_id=medicine.id, expiry_date=expiry_date)
+        # Same medicine + same expiry => merge quantities, otherwise insert a
+        # new row.  The pre-flight lookup is best-effort; concurrent requests
+        # are guarded by a database-level unique constraint with the
+        # ``IntegrityError`` handling below.
+        duplicate = self.inventory_repository.get_duplicate_inventory_item(
+            user_id=user_id,
+            medicine_id=medicine_id,
+            expiry_date=expiry_date,
+        )
+        if duplicate is not None:
+            # Case A: Same medicine, same expiry -> Merge quantities
+            duplicate.quantity = (duplicate.quantity or 0) + (quantity or 0)
+            updated = self.inventory_repository.update_inventory_item(duplicate, commit=commit)
+            if not commit:
+                return self._to_response(updated)
+            updated = self._load_inventory_item(user_id=user_id, inventory_id=updated.id)
+            return self._to_response(updated)
+
+        # No duplicate found in the pre-flight lookup.  Attempt to insert and
+        # rely on the database-level unique constraint to protect against a
+        # matching row that a concurrent request inserted in the meantime.
         item = InventoryItem(
             user_id=user_id,
             medicine_id=medicine.id,
@@ -184,7 +232,33 @@ class InventoryService:
                 expiry_date=expiry_date,
             ),
         )
-        created = self.inventory_repository.add_inventory_item(item, commit=commit)
+        try:
+            created = self.inventory_repository.add_inventory_item(item, commit=commit)
+        except InventoryDuplicateError:
+            # The repository rolled back automatically.  Re-query for the row
+            # that the concurrent request just committed and merge into it so
+            # the caller still ends up with a single, correctly summed row.
+            duplicate = self.inventory_repository.get_duplicate_inventory_item(
+                user_id=user_id,
+                medicine_id=medicine_id,
+                expiry_date=expiry_date,
+            )
+            if duplicate is None:
+                # The conflicting row disappeared between the failure and the
+                # retry (e.g., it was soft-deleted).  Surface a duplicate
+                # conflict so the client can retry safely.
+                raise AppException(
+                    "Duplicate medicine entry found.",
+                    409,
+                    "duplicate_medicine",
+                ) from None
+            duplicate.quantity = (duplicate.quantity or 0) + (quantity or 0)
+            updated = self.inventory_repository.update_inventory_item(duplicate, commit=commit)
+            if not commit:
+                return self._to_response(updated)
+            updated = self._load_inventory_item(user_id=user_id, inventory_id=updated.id)
+            return self._to_response(updated)
+
         if not commit:
             return self._to_response(created)
         created = self._load_inventory_item(user_id=user_id, inventory_id=created.id)
@@ -337,6 +411,7 @@ class InventoryService:
         return InventoryStatus.AVAILABLE
 
     def _sync_status(self, item: InventoryItem, *, commit: bool = True) -> InventoryItem:
+        """Sync the item's status in the database. Only call this during WRITE operations."""
         expected_status = self._determine_status(
             medicine_type=item.medicine.dosage_form,
             quantity=item.quantity,
@@ -358,6 +433,31 @@ class InventoryService:
         if period == ReminderPeriod.AFTERNOON:
             return afternoon
         return night
+
+    def _to_response_with_computed_status(self, item: InventoryItem) -> InventoryResponseItem:
+        """Create response with dynamically computed status (no database write)."""
+        computed_status = self._determine_status(
+            medicine_type=item.medicine.dosage_form,
+            quantity=item.quantity,
+            expiry_date=item.expiry_date,
+        )
+        return InventoryResponseItem(
+            id=item.id,
+            medicine_id=item.medicine_id,
+            name=item.medicine.name,
+            generic_name=item.medicine.generic_name,
+            brand_name=item.medicine.brand_name,
+            type=item.medicine.dosage_form,
+            quantity=item.quantity,
+            quantity_unit=item.quantity_unit,
+            status=computed_status,
+            expiry_date=item.expiry_date,
+            purchase_date=item.purchase_date,
+            image_path=item.image_url,
+            notes=item.notes,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
 
     def _to_response(self, item: InventoryItem) -> InventoryResponseItem:
         return InventoryResponseItem(

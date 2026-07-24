@@ -6,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.constants import REQUEST_ID_HEADER
+from app.core.logging import set_request_id
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -16,6 +17,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         request_id = request.headers.get(REQUEST_ID_HEADER, str(uuid.uuid4()))
         request.state.request_id = request_id
+        set_request_id(request_id)
         response = await call_next(request)
         response.headers[REQUEST_ID_HEADER] = request_id
         return response

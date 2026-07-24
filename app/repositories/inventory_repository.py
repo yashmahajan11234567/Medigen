@@ -1,6 +1,7 @@
 from datetime import date
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from app.models.inventory import InventoryItem
@@ -8,18 +9,38 @@ from app.models.medicine import Medicine
 from app.repositories.base import BaseRepository
 
 
+class InventoryDuplicateError(Exception):
+    """Raised when a unique constraint is violated during an inventory insert.
+
+    This signals to the caller that a concurrent request inserted a matching
+    inventory row before this transaction could commit.  Callers are expected
+    to roll back their current transaction and decide whether to merge,
+    update, or surface the duplication to the user.
+    """
+
+
 class InventoryRepository(BaseRepository):
     def add_inventory_item(self, inventory_item: InventoryItem, *, commit: bool = True) -> InventoryItem:
-        self.session.add(inventory_item)
-        self.session.flush()
+        try:
+            self.session.add(inventory_item)
+            self.session.flush()
+        except IntegrityError as exc:
+            # Roll back the failed transaction so the session can be reused
+            # by the caller (e.g., to merge into the existing row).
+            self.session.rollback()
+            raise InventoryDuplicateError() from exc
         if commit:
             self.session.commit()
             self.session.refresh(inventory_item)
         return inventory_item
 
     def update_inventory_item(self, inventory_item: InventoryItem, *, commit: bool = True) -> InventoryItem:
-        self.session.add(inventory_item)
-        self.session.flush()
+        try:
+            self.session.add(inventory_item)
+            self.session.flush()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise InventoryDuplicateError() from exc
         if commit:
             self.session.commit()
             self.session.refresh(inventory_item)

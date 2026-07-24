@@ -52,8 +52,14 @@ def get_inventory_summary(
 def list_inventory_items(
     db: DbSession,
     current_user=Depends(get_current_active_user),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=100),
 ) -> InventoryListResponse:
-    return InventoryService(db).list_inventory(user_id=current_user.id)
+    return InventoryService(db).list_inventory(
+        user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("", response_model=InventoryResponseItem, status_code=201)

@@ -1,4 +1,4 @@
-from datetime import date, time, timedelta
+﻿from datetime import date, time, timedelta
 
 from app.core.enums import InventoryStatus, NotificationStatus
 from app.repositories.dashboard_repository import DashboardRepository
@@ -48,7 +48,7 @@ def test_dashboard_repository_returns_expected_dashboard_data(db_session):
         db_session,
         user_id=user.id,
         medicine_id=medicine.id,
-        status=InventoryStatus.EXPIRING_SOON,
+        expiry_date=today + timedelta(days=10),  # Within 30 days = expiring_soon
     )
 
     repository = DashboardRepository(db_session)
@@ -62,18 +62,17 @@ def test_dashboard_repository_returns_expected_dashboard_data(db_session):
     assert fetched_user.id == user.id
     assert notification_count == 2
     assert [item.reminder_time for item in schedule] == [time(7, 30), time(9, 0)]
-    assert inventory_summary == {"total_medicines": 2, "expiring_soon": 1}
+    assert inventory_summary == {'total_medicines': 2, 'expiring_soon': 1}
 
 
 def test_dashboard_repository_returns_empty_results_when_no_data_exists(db_session):
     today = date(2026, 7, 12)
-    user = create_user(db_session, email="empty@example.com")
+    user = create_user(db_session, email='empty@example.com')
     repository = DashboardRepository(db_session)
 
     assert repository.get_unread_notification_count(user.id) == 0
     assert repository.get_todays_schedule(user.id, today) == []
     assert repository.get_inventory_summary(user.id) == {
-        "total_medicines": 0,
-        "expiring_soon": 0,
+        'total_medicines': 0,
+        'expiring_soon': 0,
     }
-

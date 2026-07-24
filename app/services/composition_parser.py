@@ -88,23 +88,74 @@ class CompositionParser:
             dosage_form, route = self._parse_dosage_form_and_route(remaining_text)
         else:
             # No digits found - fall back to token-based approach
-            # for cases like "Paracetamol abc mg tablet oral"
+            # Handles patterns like:
+            #   "Paracetamol abc mg tablet oral"      (5+ tokens)
+            #   "Paracetamol mg tablet"                (3 tokens, no explicit strength)
+            #   "Paracetamol mg"                        (2 tokens, ingredient + unit only)
             tokens = text.split()
-            if len(tokens) < 5:
+            if len(tokens) < 2:
                 raise ValueError("Unable to parse composition")
 
+            # First token is always the ingredient
             ingredient = tokens[0].strip()
-            strength_str = tokens[1].strip()
-            unit_str = tokens[2].strip()
-            dosage_form = tokens[3].strip()
-            route = " ".join(tokens[4:]).strip() if len(tokens) > 4 else "oral"
+            if not ingredient or ingredient[0].isdigit():
+                raise ValueError("Unable to parse composition")
+
+            # Identify known unit abbreviations to locate unit position
+            known_units = {
+                "mg", "g", "kg", "mcg", "ug", "ml", "l", "dl", "ul",
+                "iu", "meq", "meql", "mmol", "mol", "%", "percent",
+                "units", "unit",
+            }
+            unit_idx = None
+            strength_str = ""
+            for i in range(1, len(tokens)):
+                token_lower = tokens[i].lower().strip(".,;:")
+                if token_lower in known_units:
+                    unit_idx = i
+                    break
+
+            if unit_idx is not None:
+                # Everything between ingredient and unit is the strength
+                if unit_idx > 1:
+                    strength_candidates = tokens[1:unit_idx]
+                    strength_str = " ".join(strength_candidates).strip()
+                unit_str = tokens[unit_idx].strip()
+
+                # Everything after the unit is dosage form + route
+                remaining = tokens[unit_idx + 1:]
+                if remaining:
+                    dosage_form = remaining[0].strip()
+                    route = " ".join(remaining[1:]).strip() if len(remaining) > 1 else "oral"
+                else:
+                    dosage_form = ""
+                    route = "oral"
+            else:
+                # No known unit found; treat token[1] as strength, token[2] as unit if available
+                if len(tokens) == 2:
+                    strength_str = tokens[1].strip()
+                    unit_str = ""
+                    dosage_form = ""
+                    route = "oral"
+                elif len(tokens) == 3:
+                    strength_str = tokens[1].strip()
+                    unit_str = tokens[2].strip()
+                    dosage_form = ""
+                    route = "oral"
+                else:
+                    strength_str = tokens[1].strip()
+                    unit_str = tokens[2].strip()
+                    dosage_form = tokens[3].strip()
+                    route = " ".join(tokens[4:]).strip() if len(tokens) > 4 else "oral"
 
             if not ingredient:
                 raise ValueError("Unable to parse composition")
             if not unit_str:
                 raise ValueError("Unable to parse composition")
             if not dosage_form:
-                raise ValueError("Unable to parse composition")
+                dosage_form = "tablet"
+            if not route:
+                route = "oral"
 
         # Validate and process each component
 

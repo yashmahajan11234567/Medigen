@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
@@ -142,28 +142,34 @@ class MedicalRecordRepository(BaseRepository):
             ]
         return records
 
-    def link_schedule(self, record: MedicalRecord, schedule: Schedule) -> MedicalRecord:
+    def link_schedule(self, record: MedicalRecord, schedule: Schedule, *, commit: bool = True) -> MedicalRecord:
         if schedule not in record.schedules:
             record.schedules.append(schedule)
             self.session.add(record)
-            self.session.commit()
-            self.session.refresh(record)
+            self.session.flush()
+            if commit:
+                self.session.commit()
+                self.session.refresh(record)
         return record
 
-    def link_inventory(self, record: MedicalRecord, inventory_item: InventoryItem) -> MedicalRecord:
+    def link_inventory(self, record: MedicalRecord, inventory_item: InventoryItem, *, commit: bool = True) -> MedicalRecord:
         if inventory_item not in record.inventory_items:
             record.inventory_items.append(inventory_item)
             self.session.add(record)
-            self.session.commit()
-            self.session.refresh(record)
+            self.session.flush()
+            if commit:
+                self.session.commit()
+                self.session.refresh(record)
         return record
 
-    def link_medicine(self, record: MedicalRecord, medicine: Medicine) -> MedicalRecord:
+    def link_medicine(self, record: MedicalRecord, medicine: Medicine, *, commit: bool = True) -> MedicalRecord:
         if medicine not in record.medicines:
             record.medicines.append(medicine)
             self.session.add(record)
-            self.session.commit()
-            self.session.refresh(record)
+            self.session.flush()
+            if commit:
+                self.session.commit()
+                self.session.refresh(record)
         return record
 
     def get_document_by_storage_path(self, *, record_id: int, storage_path: str) -> MedicalRecordDocument | None:

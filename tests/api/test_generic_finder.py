@@ -129,4 +129,4 @@ def test_add_to_inventory_api_requires_auth_and_adds_the_medicine(client, db_ses
 
     assert unauthenticated.status_code == 401
     assert authenticated.status_code == 200
-    assert authenticated.json()["message"] == "Medicine added to inventory."
+    assert authenticated.json()["message"] == "Medicine added to inventory (or merged with existing entry)."

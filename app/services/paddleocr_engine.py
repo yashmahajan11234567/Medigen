@@ -1,4 +1,5 @@
-import time
+﻿import time
+import threading
 import logging
 import cv2
 import numpy as np
@@ -13,33 +14,46 @@ logger = logging.getLogger(__name__)
 
 
 class PaddleOCREngine(OCREngineInterface):
-    """Singleton PaddleOCR engine with lazy initialization."""
+    """Singleton PaddleOCR engine with eager initialization for production multi-worker deployments."""
 
     _instance: Optional["PaddleOCREngine"] = None
     _ocr: Optional[PaddleOCR] = None
+    _lock: threading.Lock = threading.Lock()
 
     def __new__(cls) -> "PaddleOCREngine":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _get_ocr(self) -> PaddleOCR:
-        """Lazy initialize the PaddleOCR instance."""
-        if self._ocr is None:
-            logger.info("Initializing PaddleOCR model (CPU)...")
-            settings = get_settings()
-            # Use language from settings, default to first in list or 'en'
-            lang_setting = settings.OCR_LANGUAGES
-            if isinstance(lang_setting, list) and lang_setting:
-                lang = lang_setting[0]
-            else:
-                lang = str(lang_setting) if lang_setting else "en"
-            self._ocr = PaddleOCR(
-                use_textline_orientation=settings.OCR_USE_ANGLE_CLS,
-                lang=lang,
-            )
-            logger.info("PaddleOCR model initialized.")
-        return self._ocr
+    def __init__(self) -> None:
+        # Eagerly initialize on first instantiation (happens at module import or first use)
+        # This ensures the model is loaded once per process before handling requests,
+        # avoiding latency spikes in multi-worker deployments (gunicorn, uvicorn --workers, etc.)
+        if PaddleOCREngine._ocr is None:
+            self._initialize_ocr()
+
+    def _initialize_ocr(self) -> None:
+        """Initialize the PaddleOCR instance (thread-safe)."""
+        with PaddleOCREngine._lock:
+            if PaddleOCREngine._ocr is None:
+                logger.info("Initializing PaddleOCR model (CPU)...")
+                settings = get_settings()
+                lang_setting = settings.OCR_LANGUAGES
+                if isinstance(lang_setting, list) and lang_setting:
+                    lang = lang_setting[0]
+                else:
+                    lang = str(lang_setting) if lang_setting else "en"
+                PaddleOCREngine._ocr = PaddleOCR(
+                    use_textline_orientation=settings.OCR_USE_ANGLE_CLS,
+                    lang=lang,
+                )
+                logger.info("PaddleOCR model initialized.")
+
+    @classmethod
+    def pre_warm(cls) -> None:
+        """Explicitly initialize the OCR engine. Call at application startup to avoid first-request latency."""
+        if cls._ocr is None:
+            instance = cls()  # Triggers __init__ which calls _initialize_ocr
 
     def extract_text(self, image_bytes: bytes) -> OCRResult:
         """
@@ -71,29 +85,23 @@ class PaddleOCREngine(OCREngineInterface):
             height, width, channels = img.shape
             logger.debug(f"Image dimensions: {width}x{height}, channels={channels}")
 
-            # Run OCR
-            ocr = self._get_ocr()
-            # PaddleOCR expects a numpy array; returns list of pages, each page is list of detections
-            # Each detection: [bounding_box, (text, confidence)]
-            # Note: orientation classification is controlled via constructor parameter use_textline_orientation
+            # Run OCR - _ocr is guaranteed to be initialized by __init__ or pre_warm
+            ocr = PaddleOCREngine._ocr
             result = ocr.ocr(img)
 
             # Process results
             if not result or not result[0]:
-                # No text detected
                 elapsed = time.time() - start_time
                 logger.info(
                     f"OCR completed in {elapsed:.2f}s. No text detected. Image size: {width}x{height}"
                 )
                 return OCRResult(text="", average_confidence=None, word_details=None)
 
-            # Flatten results (result is a list of pages; we assume single page for simplicity)
             texts: List[str] = []
             confidences: List[float] = []
             word_details: List[Tuple[str, float]] = []
 
             for line in result[0]:
-                # Each line should be [bbox, (text, confidence)]
                 if not isinstance(line, (list, tuple)) or len(line) != 2:
                     continue
                 _bbox, text_conf = line
@@ -111,7 +119,6 @@ class PaddleOCREngine(OCREngineInterface):
                 word_details.append((text, confidence))
 
             if not texts:
-                # No valid text detected
                 elapsed = time.time() - start_time
                 logger.info(
                     f"OCR completed in {elapsed:.2f}s. No valid text detected. Image size: {width}x{height}"

@@ -76,6 +76,9 @@ class BillParser:
 
             medicines.append(medicine)
 
+        if not medicines:
+            raise ValueError("No medicine entries could be extracted from the bill text")
+
         return BillParseResult(medicines=medicines, raw_text=text)
 
     def _is_quantity_line(self, line: str) -> bool:

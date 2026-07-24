@@ -1,16 +1,11 @@
-import { Bell, User } from "lucide-react";
+﻿import { Bell, User } from "lucide-react";
 
 interface DashboardHeaderProps {
   name: string;
+  greeting: string;
 }
 
-export function DashboardHeader({ name }: DashboardHeaderProps) {
-  const hour = new Date().getHours();
-  let greeting: string;
-  if (hour < 12) greeting = "Good Morning";
-  else if (hour < 17) greeting = "Good Afternoon";
-  else greeting = "Good Evening";
-
+export function DashboardHeader({ name, greeting }: DashboardHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">

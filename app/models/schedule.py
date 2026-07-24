@@ -1,6 +1,6 @@
 from datetime import date, time
 
-from sqlalchemy import Date, Enum as SqlEnum, Float, ForeignKey, Index, Integer, String, Text, Time
+from sqlalchemy import Date, Enum as SqlEnum, Float, ForeignKey, Index, Integer, String, Text, Time, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import FoodTiming, ScheduleSource, ScheduleStatus
@@ -13,6 +13,29 @@ class Schedule(TimestampMixin, SoftDeleteMixin, Base):
     __table_args__ = (
         Index("ix_schedules_user_status", "user_id", "status"),
         Index("ix_schedules_user_start_date", "user_id", "start_date"),
+        # Database-level safety net that prevents *exact* duplicate active
+        # schedules (same user, medicine, start_date and end_date) from
+        # coexisting. The partial predicate (``status = 'active'`` and not
+        # soft-deleted) preserves soft-delete semantics and only enforces
+        # uniqueness among active rows.
+        #
+        # This intentionally narrows to *exact* duplicates: the application
+        # layer's overlap-based duplicate check (``_ensure_no_duplicate_schedule``)
+        # is stricter and handles overlapping-but-not-identical schedules -- that
+        # logic cannot be expressed portably as a unique index across PostgreSQL
+        # and SQLite, so it remains a service-layer concern and this index is a
+        # concurrency backstop. Created by Alembic migration ``20260724_0005``;
+        # declared here so ``Base.metadata.create_all`` produces the same schema.
+        Index(
+            "uq_schedules_user_medicine_active_dates",
+            "user_id",
+            "medicine_id",
+            "start_date",
+            "end_date",
+            unique=True,
+            sqlite_where=text("is_deleted = 0 AND status = 'active'"),
+            postgresql_where=text("is_deleted = false AND status = 'active'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

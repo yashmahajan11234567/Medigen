@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.auth.dependencies import get_current_active_user
 from app.db.session import DbSession
@@ -48,8 +48,14 @@ def complete_schedule_reminder(
 def list_schedules(
     db: DbSession,
     current_user=Depends(get_current_active_user),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=100),
 ) -> ScheduleListResponse:
-    return SchedulerService(db).list_schedules(user_id=current_user.id)
+    return SchedulerService(db).list_schedules(
+        user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("", response_model=ScheduleResponse, status_code=201)

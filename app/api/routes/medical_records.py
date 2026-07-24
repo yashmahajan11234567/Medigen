@@ -59,8 +59,14 @@ def link_medical_record_modules(
 def list_medical_records(
     db: DbSession,
     current_user=Depends(get_current_active_user),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=100),
 ) -> MedicalRecordListResponse:
-    return MedicalRecordService(db).list_records(user_id=current_user.id)
+    return MedicalRecordService(db).list_records(
+        user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post("", response_model=MedicalRecordResponse, status_code=201)

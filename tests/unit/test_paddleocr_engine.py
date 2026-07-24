@@ -20,19 +20,19 @@ class TestPaddleOCREngine(unittest.TestCase):
 
     @patch("app.services.paddleocr_engine.PaddleOCR")
     def test_lazy_initialization(self, mock_paddle_ocr):
-        """Ensure PaddleOCR is not instantiated until first use."""
+        """Verify eager, thread-safe OCR initialization on construction."""
         engine = PaddleOCREngine()
-        # Constructor should not have called PaddleOCR yet
-        mock_paddle_ocr.assert_not_called()
+        # Constructor eagerly initializes PaddleOCR once
+        mock_paddle_ocr.assert_called_once()
         # Create a dummy image
         _, img_encoded = cv2.imencode(".png", np.zeros((10, 10, 3), dtype=np.uint8))
         image_bytes = img_encoded.tobytes()
         # Call extract_text
-        engine.extract_text(image_bytes)
-        # Now PaddleOCR should have been called once
-        mock_paddle_ocr.assert_called_once()
-        # Second call should not re-initialize
         mock_paddle_ocr.reset_mock()
+        engine.extract_text(image_bytes)
+        # extract_text should not re-initialize (already initialized eagerly)
+        mock_paddle_ocr.assert_not_called()
+        # Second call to extract_text also should not re-initialize
         engine.extract_text(image_bytes)
         mock_paddle_ocr.assert_not_called()
 

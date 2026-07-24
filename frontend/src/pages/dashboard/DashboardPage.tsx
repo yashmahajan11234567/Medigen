@@ -1,4 +1,4 @@
-import { DashboardHeader } from "@/pages/dashboard/components/DashboardHeader";
+﻿import { DashboardHeader } from "@/pages/dashboard/components/DashboardHeader";
 import { SearchBar } from "@/pages/dashboard/components/SearchBar";
 import { QuickActionCard } from "@/pages/dashboard/components/QuickActionCard";
 import { StatsCard } from "@/pages/dashboard/components/StatsCard";
@@ -10,10 +10,12 @@ import { PageError } from "@/components/feedback/PageError";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Pill, Scan, Archive, QrCode, RefreshCw } from "lucide-react";
 import { LoadingScreen } from "@/components/common/LoadingScreen";
+import { useState } from "react";
 
 export function DashboardPage() {
   const { dashboard, loading, error, refetch } = useDashboard();
   const { addToast } = useToast();
+  const [searchQuery, setSearchQuery] = useState("");
 
   if (loading && !dashboard) {
     return (
@@ -29,12 +31,12 @@ export function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center px-6">
         <PageError
           title="Something went wrong"
-          description="We couldn't load your dashboard. Please try again."
+          description="We couldn&apos;t load your dashboard. Please try again."
           onRetry={() => {
             refetch();
             addToast({
               title: "Dashboard refreshed.",
-              description: "We've refreshed your dashboard.",
+              description: "We&apos;ve refreshed your dashboard.",
               variant: "success",
             });
           }}
@@ -45,11 +47,12 @@ export function DashboardPage() {
 
   // Extract data for convenience
   const user = dashboard?.user ?? { name: "" };
+  const greeting = dashboard?.greeting ?? "";
   const today_schedule = dashboard?.today_schedule ?? [];
   const inventory_summary = dashboard?.inventory_summary ?? { total_medicines: 0, expiring_soon: 0 };
-  const medical_records_count = 0;
-  const generic_searches_count = 0;
-  const low_stock_list: any[] = [];
+  const medical_records_count = dashboard?.medical_records_count ?? 0;
+  const generic_searches_count = dashboard?.generic_searches_count ?? 0;
+  const low_stock_list = dashboard?.low_stock_medicines ?? [];
   const recent_records: any[] = [];
 
   // Stats data
@@ -57,11 +60,11 @@ export function DashboardPage() {
     {
       title: "Medicines in Inventory",
       value: inventory_summary.total_medicines,
-      icon: "Pill", // We'll map to actual icon later
+      icon: "Pill",
       accent: "blue",
     },
     {
-      title: "Today's Medicines",
+      title: "Today&apos;s Medicines",
       value: today_schedule.length,
       icon: "Scan",
       accent: "green",
@@ -115,7 +118,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <DashboardHeader name={user.name} />
+        <DashboardHeader name={user.name} greeting={greeting} />
         <button
           onClick={async () => {
             await refetch();
@@ -132,11 +135,10 @@ export function DashboardPage() {
         </button>
       </div>
 
-      <SearchBar />
+      <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {stats.map((stat) => {
-          // Map icon string to actual icon component
           const iconMap: Record<string, typeof Pill> = {
             Pill,
             Scan,

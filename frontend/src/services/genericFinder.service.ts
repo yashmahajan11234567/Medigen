@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+﻿import { apiClient } from "@/lib/api-client";
 import type {
   GenericFinderSearchResponse,
   AddToInventoryRequest,
@@ -6,9 +6,11 @@ import type {
 } from "@/types/api";
 
 export const genericFinderService = {
-  search(medicineName: string): Promise<GenericFinderSearchResponse> {
+  search(brandName: string): Promise<GenericFinderSearchResponse> {
     return apiClient
-      .post<GenericFinderSearchResponse>("/api/v1/generic/search", { medicine_name: medicineName })
+      .get<GenericFinderSearchResponse>("/api/v1/generic/search", {
+        params: { brand_name: brandName },
+      })
       .then((r) => r.data);
   },
 
@@ -18,4 +20,3 @@ export const genericFinderService = {
       .then((r) => r.data);
   },
 };
-

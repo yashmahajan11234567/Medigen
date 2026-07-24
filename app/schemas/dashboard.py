@@ -1,4 +1,4 @@
-from datetime import time
+﻿from datetime import time
 
 from pydantic import BaseModel
 
@@ -23,10 +23,20 @@ class DashboardInventorySummary(BaseModel):
     expiring_soon: int
 
 
+class LowStockMedicineItem(BaseModel):
+    id: int
+    name: str
+    quantity: float | None = None
+    quantity_unit: str | None = None
+    expiry_date: str | None = None
+
+
 class DashboardResponse(BaseModel):
     user: DashboardUserSummary
     greeting: str
     notification_count: int
     today_schedule: list[DashboardScheduleItem]
     inventory_summary: DashboardInventorySummary
-
+    low_stock_medicines: list[LowStockMedicineItem]
+    medical_records_count: int
+    generic_searches_count: int

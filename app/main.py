@@ -11,6 +11,7 @@ from app.core.logging import configure_logging
 from app.db.helpers import ping_database
 from app.db.session import initialize_database, shutdown_database
 from app.middleware.authentication import AuthenticationContextMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 from app.schemas.common import HealthResponse
 
@@ -40,6 +41,7 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(AuthenticationContextMiddleware)
 

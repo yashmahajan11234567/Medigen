@@ -123,5 +123,5 @@ def test_generic_finder_inventory_integration_now_succeeds(client, db_session):
     )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Medicine added to inventory."
+    assert response.json()["message"] == "Medicine added to inventory (or merged with existing entry)."
 

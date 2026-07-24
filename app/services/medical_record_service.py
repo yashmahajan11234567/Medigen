@@ -115,9 +115,18 @@ class MedicalRecordService:
         except SQLAlchemyError as exc:
             raise AppException("Database failure while loading medical record.", 500, "database_failure") from exc
 
-    def list_records(self, *, user_id: int) -> MedicalRecordListResponse:
+    def list_records(
+        self,
+        *,
+        user_id: int,
+        page: int | None = None,
+        page_size: int | None = None,
+    ) -> MedicalRecordListResponse:
         try:
             records = self.repository.list_records(user_id=user_id)
+            if page is not None and page_size is not None:
+                start = (page - 1) * page_size
+                records = records[start : start + page_size]
             return MedicalRecordListResponse(items=[self._to_response(record) for record in records])
         except SQLAlchemyError as exc:
             raise AppException("Database failure while loading medical records.", 500, "database_failure") from exc
@@ -173,11 +182,13 @@ class MedicalRecordService:
 
     def _apply_links(self, *, record, link_targets: dict[str, list]):
         for schedule in link_targets["schedules"]:
-            record = self.repository.link_schedule(record, schedule)
+            record = self.repository.link_schedule(record, schedule, commit=False)
         for inventory_item in link_targets["inventory_items"]:
-            record = self.repository.link_inventory(record, inventory_item)
+            record = self.repository.link_inventory(record, inventory_item, commit=False)
         for medicine in link_targets["medicines"]:
-            record = self.repository.link_medicine(record, medicine)
+            record = self.repository.link_medicine(record, medicine, commit=False)
+        # All link operations were performed without individual commits.
+        # The caller is responsible for a single commit at the top level.
         return record
 
     def _resolve_link_targets(

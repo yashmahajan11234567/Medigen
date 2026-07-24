@@ -16,6 +16,7 @@ from app.auth.jwt import create_access_token
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
+from app.middleware.rate_limit import reset_rate_limiters
 from app.models import load_all_models
 from tests.support import create_user
 
@@ -38,6 +39,12 @@ def test_engine():
     engine.dispose()
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters() -> None:
+    """Ensure rate limiter state is clean before every test."""
+    reset_rate_limiters()
 
 
 @pytest.fixture()

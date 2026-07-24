@@ -1,22 +1,23 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.auth.dependencies import get_current_active_user
 from app.db.session import DbSession
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead
 from app.services.auth_service import AuthService
+from app.middleware.rate_limit import login_rate_limit, register_rate_limit
 
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register_user(payload: RegisterRequest, db: DbSession) -> UserRead:
+def register_user(payload: RegisterRequest, db: DbSession, _rate=Depends(register_rate_limit)) -> UserRead:
     service = AuthService(db)
     return UserRead.model_validate(service.register_user(payload))
 
 
 @router.post("/login", response_model=TokenResponse)
-def login_user(payload: LoginRequest, db: DbSession) -> TokenResponse:
+def login_user(payload: LoginRequest, db: DbSession, _rate=Depends(login_rate_limit)) -> TokenResponse:
     service = AuthService(db)
     token, user = service.authenticate_user(payload)
     return TokenResponse(

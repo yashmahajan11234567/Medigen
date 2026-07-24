@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import joinedload
@@ -47,10 +47,14 @@ class DashboardRepository(BaseRepository):
             InventoryItem.user_id == user_id,
             InventoryItem.is_deleted.is_(False),
         )
+        # Compute expiring_soon based on expiry_date (<= 30 days from today), not status field
+        # This avoids needing to sync status during reads (no writes on GET)
+        expiry_threshold = date.today() + timedelta(days=30)
         expiring_statement = select(func.count(InventoryItem.id)).where(
             InventoryItem.user_id == user_id,
             InventoryItem.is_deleted.is_(False),
-            InventoryItem.status == InventoryStatus.EXPIRING_SOON,
+            InventoryItem.expiry_date.is_not(None),
+            InventoryItem.expiry_date <= expiry_threshold,
         )
 
         return {
@@ -58,3 +62,49 @@ class DashboardRepository(BaseRepository):
             "expiring_soon": int(self.session.execute(expiring_statement).scalar_one()),
         }
 
+    def get_low_stock_medicines(self, user_id: int) -> list[InventoryItem]:
+        statement = (
+            select(InventoryItem)
+            .options(joinedload(InventoryItem.medicine))
+            .where(
+                InventoryItem.user_id == user_id,
+                InventoryItem.is_deleted.is_(False),
+                InventoryItem.status == InventoryStatus.LOW_STOCK,
+            )
+            .order_by(InventoryItem.expiry_date.is_(None), InventoryItem.expiry_date.asc(), InventoryItem.id.asc())
+        )
+        return list(self.session.execute(statement).scalars().unique().all())
+
+    def get_medical_records_count(self, user_id: int) -> int:
+        from app.models.medical_record import MedicalRecord
+        statement = select(func.count(MedicalRecord.id)).where(
+            MedicalRecord.user_id == user_id,
+            MedicalRecord.is_deleted.is_(False),
+        )
+        return int(self.session.execute(statement).scalar_one())
+
+    def get_generic_searches_count(self, user_id: int) -> int:
+        """Count distinct generic search IDs across all medical records.
+
+        Uses DISTINCT at the database level to reduce transferred rows,
+        then de-duplicates across JSON array elements in Python (JSON
+        array unnesting is not portable across SQLite without the JSON1
+        extension, so the final cross-array dedup remains in application
+        code).
+        """
+        from app.models.medical_record import MedicalRecord
+        statement = (
+            select(MedicalRecord.linked_generic_search_ids)
+            .where(
+                MedicalRecord.user_id == user_id,
+                MedicalRecord.is_deleted.is_(False),
+                MedicalRecord.linked_generic_search_ids.is_not(None),
+            )
+            .distinct()
+        )
+        result = self.session.execute(statement).scalars().all()
+        unique_ids: set[str] = set()
+        for ids in result:
+            if ids:
+                unique_ids.update(ids)
+        return len(unique_ids)
