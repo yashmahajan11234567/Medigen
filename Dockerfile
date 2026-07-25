@@ -32,14 +32,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entrypoint script into work directory and make it executable
-COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
-
 # Copy application code
 COPY . .
 
-# Change ownership to non-root user
+RUN chmod +x /app/entrypoint.sh
 RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
@@ -49,4 +45,4 @@ USER appuser
 EXPOSE 8000
 
 # Run migrations and start the server
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
