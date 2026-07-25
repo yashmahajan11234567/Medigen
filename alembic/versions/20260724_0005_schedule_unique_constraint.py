@@ -27,13 +27,29 @@ def upgrade() -> None:
 
     # Check for existing exact duplicate active schedules
     # (same user, medicine, start_date, end_date, status=active, not soft-deleted)
-    duplicate_check = text("""
-        SELECT user_id, medicine_id, start_date, end_date, COUNT(*) as cnt
-        FROM schedules
-        WHERE is_deleted = 0 AND status = 'active'
-        GROUP BY user_id, medicine_id, start_date, end_date
-        HAVING COUNT(*) > 1
-    """)
+    # Use SQLAlchemy expression for dialect-compatible boolean comparison
+    # is_deleted.is_(False) generates "is_deleted = false" on PostgreSQL and "is_deleted = 0" on SQLite
+    schedules_table = sa.Table("schedules", sa.MetaData(), autoload_with=bind)
+    duplicate_check = (
+        sa.select(
+            schedules_table.c.user_id,
+            schedules_table.c.medicine_id,
+            schedules_table.c.start_date,
+            schedules_table.c.end_date,
+            sa.func.count().label("cnt"),
+        )
+        .where(
+            schedules_table.c.is_deleted.is_(False) &
+            (schedules_table.c.status == "active")
+        )
+        .group_by(
+            schedules_table.c.user_id,
+            schedules_table.c.medicine_id,
+            schedules_table.c.start_date,
+            schedules_table.c.end_date,
+        )
+        .having(sa.func.count() > 1)
+    )
     result = bind.execute(duplicate_check)
     duplicates = result.fetchall()
     if duplicates:
@@ -68,4 +84,3 @@ def downgrade() -> None:
         sqlite_where=text("is_deleted = 0 AND status = 'active'"),
         postgresql_where=text("is_deleted = false AND status = 'active'"),
     )
-

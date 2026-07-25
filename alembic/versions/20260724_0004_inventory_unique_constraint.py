@@ -26,13 +26,24 @@ def upgrade() -> None:
         return
 
     # Check for existing duplicates among non-deleted rows
-    duplicate_check = text("""
-        SELECT user_id, medicine_id, expiry_date, COUNT(*) as cnt
-        FROM inventory
-        WHERE is_deleted = 0
-        GROUP BY user_id, medicine_id, expiry_date
-        HAVING COUNT(*) > 1
-    """)
+    # Use SQLAlchemy expression for dialect-compatible boolean comparison
+    # is_deleted.is_(False) generates "is_deleted = false" on PostgreSQL and "is_deleted = 0" on SQLite
+    inventory_table = sa.Table("inventory", sa.MetaData(), autoload_with=bind)
+    duplicate_check = (
+        sa.select(
+            inventory_table.c.user_id,
+            inventory_table.c.medicine_id,
+            inventory_table.c.expiry_date,
+            sa.func.count().label("cnt"),
+        )
+        .where(inventory_table.c.is_deleted.is_(False))
+        .group_by(
+            inventory_table.c.user_id,
+            inventory_table.c.medicine_id,
+            inventory_table.c.expiry_date,
+        )
+        .having(sa.func.count() > 1)
+    )
     result = bind.execute(duplicate_check)
     duplicates = result.fetchall()
     if duplicates:
@@ -60,4 +71,3 @@ def downgrade() -> None:
         sqlite_where=text("is_deleted = 0"),
         postgresql_where=text("is_deleted = false"),
     )
-
